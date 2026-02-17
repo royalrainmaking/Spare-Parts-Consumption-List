@@ -73,6 +73,19 @@ function doPost(e) {
     var timestamp = new Date();
     var transactionId = data.transactionId || ("TX-" + timestamp.getTime());
     
+    // Edit Mode: Remove existing rows with the same TransactionID before re-adding
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var idColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+      var targetId = String(transactionId).trim();
+      for (var i = idColumn.length - 1; i >= 0; i--) {
+        var rowId = String(idColumn[i][0]).trim();
+        if (rowId === targetId) {
+          sheet.deleteRow(i + 2);
+        }
+      }
+    }
+    
     // Log each item as a separate row
     data.items.forEach(function(item) {
       sheet.appendRow([

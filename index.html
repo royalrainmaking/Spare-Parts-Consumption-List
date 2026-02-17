@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบจัดการวัสดุอากาศยาน & Dashboard</title>
+    <link rel="icon" href="data:,">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
@@ -249,7 +250,7 @@
             <div class="card" style="display: none;">
                 <div class="form-group">
                     <label>Google Apps Script URL (เชื่อมต่อแล้ว)</label>
-                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbwWigL4SH6nOQ8qovGMGdz6CWLvyytJ7bt5MfYr8TQFEhR42JJz_ckxZQ3bZlyJDdP6/exec" style="background: #f0fdf4; color: #166534;" readonly>
+                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbzHvLyqk2KHBaJ4oTsOV6NkZtZYVV52KoMQSebbOrfNNf2FG3Q0hFjMdIsBapynmNVk/exec" style="background: #f0fdf4; color: #166534;" readonly>
                 </div>
             </div>
 
@@ -264,19 +265,19 @@
             </div>
 
             <div class="card">
-                <label>ประเภทการตรวจซ่อม</label>
+                <label>ประเภทการตรวจซ่อม (เลือกได้เพียงอย่างเดียว)</label>
                 <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
                     <!-- แถวที่ 1 -->
                     <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; cursor: pointer;">
-                        <input type="checkbox" id="ui-chk-1" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                        <input type="radio" name="repair-type" id="ui-chk-1" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
                         <span>ตรวจซ่อมพิเศษประจำปี</span>
                     </label>
                     
                     <!-- แถวที่ 2 -->
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; min-width: 140px; cursor: pointer;">
-                            <input type="checkbox" id="ui-chk-2" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
-                            <span>ตามระยะเวลา</span>
+                        <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; min-width: 160px; cursor: pointer;">
+                            <input type="radio" name="repair-type" id="ui-chk-2" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                            <span>ตรวจซ่อมตามระยะเวลา</span>
                         </label>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <input type="text" id="ui-hrs" placeholder="ชม.บิน" style="width: 80px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;" oninput="sync()"> 
@@ -288,14 +289,14 @@
 
                     <!-- แถวที่ 3 -->
                     <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; cursor: pointer;">
-                        <input type="checkbox" id="ui-chk-3" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
-                        <span>ตามอาการ</span>
+                        <input type="radio" name="repair-type" id="ui-chk-3" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                        <span>ตรวจซ่อมตามอาการ</span>
                     </label>
 
                     <!-- แถวที่ 4 -->
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; min-width: 140px; cursor: pointer;">
-                            <input type="checkbox" id="ui-chk-4" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                        <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; min-width: 160px; cursor: pointer;">
+                            <input type="radio" name="repair-type" id="ui-chk-4" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
                             <span>อื่นๆ</span>
                         </label>
                         <input type="text" id="ui-other-txt" placeholder="ระบุรายละเอียด..." style="width: 250px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;" oninput="sync()">
@@ -344,6 +345,7 @@
 
             <div style="display: flex; gap: 10px;">
                 <button class="btn-success" style="flex: 1; padding: 15px;" onclick="saveToSheets()">💾 บันทึกลง Google Sheets</button>
+                <button class="btn-primary" style="padding: 15px; background: #64748b;" onclick="resetForm()">🔄 ล้างฟอร์ม / เริ่มใหม่</button>
                 <button id="print-btn" class="btn-primary" style="flex: 1; padding: 15px; opacity: 0.5; cursor: not-allowed;" onclick="handlePrint()" disabled>🖨️ พิมพ์เอกสาร (PDF)</button>
             </div>
         </div>
@@ -491,6 +493,7 @@
         let itemCount = 0;
         let allData = [];
         let acChart, trendChart;
+        let editingTxId = null;
 
         let isSaved = false;
 
@@ -506,6 +509,106 @@
                 navItems[1].classList.add('active');
                 loadDashboardData();
             }
+        }
+
+        function resetForm() {
+            editingTxId = null;
+            document.getElementById('ui-location').value = '';
+            document.getElementById('ui-date').value = '';
+            document.getElementById('ui-ac-type').value = '';
+            document.getElementById('ui-kaset').value = '';
+            document.getElementById('ui-ref').value = '';
+            document.getElementById('ui-chk-1').checked = false;
+            document.getElementById('ui-chk-2').checked = false;
+            document.getElementById('ui-hrs').value = '';
+            document.getElementById('ui-round').value = '';
+            document.getElementById('ui-chk-3').checked = false;
+            document.getElementById('ui-chk-4').checked = false;
+            document.getElementById('ui-other-txt').value = '';
+            document.getElementById('ui-note').value = '';
+            document.getElementById('ui-items-container').innerHTML = '';
+            
+            document.getElementById('ui-op-name').value = '';
+            document.getElementById('ui-op-rank').value = '';
+            document.getElementById('ui-sv-name').value = '';
+            document.getElementById('ui-sv-rank').value = '';
+
+            itemCount = 0;
+            markUnsaved();
+            sync();
+            
+            // Re-add one empty row
+            addItem();
+        }
+
+        function editTransaction(txId) {
+            const txData = allData.filter(d => d.TransactionID === txId);
+            if (txData.length === 0) return;
+
+            const first = txData[0];
+            
+            showView('form');
+            editingTxId = txId;
+            
+            document.getElementById('ui-location').value = first.Location || '';
+            // Format date for input type="date"
+            if (first.Date) {
+                const d = new Date(first.Date);
+                const dateStr = d.toISOString().split('T')[0];
+                document.getElementById('ui-date').value = dateStr;
+            }
+            
+            document.getElementById('ui-ac-type').value = first.Aircraft || '';
+            document.getElementById('ui-kaset').value = first.KasetNo || '';
+            document.getElementById('ui-ref').value = first.Ref || '';
+            document.getElementById('ui-note').value = first.Note || '';
+            
+            // Repair Type logic
+            const rt = first.RepairType || "";
+            document.getElementById('ui-chk-1').checked = rt.includes("พิเศษ");
+            document.getElementById('ui-chk-2').checked = rt.includes("ระยะเวลา");
+            document.getElementById('ui-chk-3').checked = rt.includes("ตามอาการ");
+            document.getElementById('ui-chk-4').checked = rt.includes("อื่นๆ");
+            
+            // Extract hrs and round if available
+            const hrsMatch = rt.match(/ระยะเวลา\((.*?) ชม\.บิน/);
+            if (hrsMatch) document.getElementById('ui-hrs').value = hrsMatch[1];
+            
+            const roundMatch = rt.match(/ครั้งที่ (.*?)\)/);
+            if (roundMatch) document.getElementById('ui-round').value = roundMatch[1];
+            
+            const otherMatch = rt.match(/อื่นๆ\((.*?)\)/);
+            if (otherMatch) document.getElementById('ui-other-txt').value = otherMatch[1];
+
+            document.getElementById('ui-op-name').value = first.Operator || '';
+            document.getElementById('ui-op-rank').value = first.OpRank || '';
+            document.getElementById('ui-sv-name').value = first.Supervisor || '';
+            document.getElementById('ui-sv-rank').value = first.SvRank || '';
+
+            // Items
+            document.getElementById('ui-items-container').innerHTML = '';
+            itemCount = 0;
+            txData.forEach(item => {
+                itemCount++;
+                const container = document.getElementById('ui-items-container');
+                document.getElementById('item-labels-header').style.display = 'grid';
+                const div = document.createElement('div');
+                div.className = 'item-row';
+                div.id = `row-${itemCount}`;
+                div.innerHTML = `
+                    <input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()" value="${item.Item || ''}">
+                    <input type="text" class="i-pn" placeholder="P/N" oninput="sync()" value="${item.PN || ''}">
+                    <input type="text" class="i-sn" placeholder="S/N" oninput="sync()" value="${item.SN || ''}">
+                    <input type="number" class="i-qty" value="${item.Qty || 1}" oninput="sync()">
+                    <input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()" value="${item.Note || ''}">
+                    <button onclick="removeItem(${itemCount})" style="background:#fee2e2; color:#ef4444; padding:8px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">🗑️</button>
+                `;
+                container.appendChild(div);
+            });
+
+            sync();
+            document.getElementById('detail-modal').style.display = 'none';
+            alert("โหลดข้อมูล Transaction " + txId + " มาเพื่อแก้ไขแล้วครับ");
         }
 
         function markUnsaved() {
@@ -637,7 +740,7 @@
             toggleLoading(true, "กำลังบันทึกข้อมูล...");
 
             const timestamp = new Date();
-            const transactionId = "TX-" + timestamp.getTime();
+            const transactionId = editingTxId || ("TX-" + timestamp.getTime());
 
             // สรุปประเภทการซ่อมพร้อมรายละเอียด
             let repairTypeLabel = "";
@@ -686,6 +789,7 @@
                 printBtn.style.cursor = "pointer";
                 
                 alert("บันทึกข้อมูลสำเร็จ! คุณสามารถพิมพ์เอกสารได้แล้วครับ");
+                editingTxId = null; // Clear edit mode after save
             } catch (error) {
                 console.error(error);
                 alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -933,7 +1037,8 @@
                             <td>${dStr}</td>
                             <td style="font-family: monospace; font-size: 11px;">
                                 ${id}
-                                <button class="btn-primary" style="padding:2px 8px; font-size:10px; margin-top:5px; display:block" onclick="preparePrint('${id}')">🖨️ พิมพ์ฟอร์ม</button>
+                                <button class="btn-primary" style="padding:2px 8px; font-size:10px; margin-top:5px; display:block; width: 100%;" onclick="preparePrint('${id}')">🖨️ พิมพ์ฟอร์ม</button>
+                                <button class="btn-success" style="padding:2px 8px; font-size:10px; margin-top:5px; display:block; width: 100%;" onclick="editTransaction('${id}')">✏️ แก้ไขข้อมูล</button>
                             </td>
                             <td style="font-size: 13px; color:#1e293b; line-height:1.4;">${tx.items.join(', ')}</td>
                             <td>${tx.people}</td>
