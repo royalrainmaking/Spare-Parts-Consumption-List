@@ -18,7 +18,8 @@
         }
 
         body {
-            font-family: 'Sarabun', sans-serif;
+            font-family: monospace;
+            font-size: 13px;
             background-color: var(--bg);
             margin: 0;
             display: flex;
@@ -180,15 +181,17 @@
         }
         .modal-content {
             background-color: white;
-            margin: 5% auto;
+            margin: 2vh auto;
             padding: 24px;
             border-radius: 16px;
-            width: 80%;
-            max-width: 900px;
-            max-height: 85vh;
+            width: 95vw;
+            height: 96vh;
+            max-width: 95vw;
+            max-height: 96vh;
             overflow-y: auto;
             box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
             position: relative;
+            box-sizing: border-box;
         }
         .close-modal {
             position: absolute;
@@ -397,9 +400,9 @@
                             <tr>
                                 <th>หมายเลขเกษตร</th>
                                 <th>อากาศยาน</th>
-                                <th>รายการที่เบิกทั้งหมด</th>
-                                <th>จำนวนรวม</th>
-                                <th>ล่าสุดเมื่อ</th>
+                                <th>รายการที่เบิก</th>
+                                <th style="width:80px">จำนวนรวม</th>
+                                <th style="width:100px">ล่าสุดเมื่อ</th>
                             </tr>
                         </thead>
                         <tbody id="kaset-table-body"></tbody>
@@ -409,7 +412,7 @@
 
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
-                    <h3 style="margin: 0; flex-grow: 1; border: none; padding: 0;">📝 รายการเบิกวัสดุทั้งหมด (All Records)</h3>
+                    <h3 style="margin: 0; flex-grow: 1; border: none; padding: 0;">📝 สรุปรายการเบิกวัสดุทั้งหมด (All Parts Summary)</h3>
                     <div style="display: flex; gap: 10px; align-items: flex-end;">
                         <div>
                             <label style="font-size: 12px;">กรองตามชื่ออะไหล่</label>
@@ -418,6 +421,7 @@
                             </select>
                         </div>
                         <button class="btn-success" onclick="exportToExcel()" style="height: 38px; display: flex; align-items: center; gap: 5px;">📗 Export Excel</button>
+                        <button class="btn-primary" onclick="showAllTransactions()" style="height: 38px; display: flex; align-items: center; gap: 5px;">📜 แสดงรายละเอียดทั้งหมด</button>
                     </div>
                 </div>
                 <div style="max-height: 600px; overflow-y: auto;">
@@ -427,7 +431,7 @@
                                 <th>รายการอะไหล่</th>
                                 <th>P/N</th>
                                 <th>S/N</th>
-                                <th>จำนวนที่ใช้รวม</th>
+                                <th style="width:100px">จำนวนรวม</th>
                             </tr>
                         </thead>
                         <tbody id="dash-table-body"></tbody>
@@ -922,9 +926,6 @@
 
             filtered.forEach(d => {
                 const q = parseInt(d.Qty || 0);
-                const partKey = d.Item + '|' + d.PN;
-                if(!summary[partKey]) summary[partKey] = { name: d.Item, pn: d.PN, qty: 0 };
-                summary[partKey].qty += q;
                 
                 // Summary by Kaset No
                 if (d.KasetNo) {
@@ -963,9 +964,10 @@
                 transactions[txId].searchString += ` ${d.Item}`.toLowerCase();
             });
 
-            // Render Kaset Table
+            // Render Kaset Summary Table (Grouped by Kaset No)
             const kTableBody = document.getElementById('kaset-table-body');
             kTableBody.innerHTML = '';
+            
             Object.values(kasetSummary)
                 .sort((a,b) => new Date(b.lastDate) - new Date(a.lastDate))
                 .forEach(k => {
@@ -975,13 +977,13 @@
                             <td style="font-weight: bold; color: var(--primary);">${k.kaset}</td>
                             <td>${k.ac || '-'}</td>
                             <td style="font-size: 13px;">${Array.from(k.items).join(', ')}</td>
-                            <td>${k.totalQty}</td>
+                            <td><b>${k.totalQty}</b></td>
                             <td>${dStr}</td>
                         </tr>
                     `;
                 });
 
-            // Render All Records Table (Grouped by Part/PN/SN)
+            // Render All Parts Summary Table (Grouped by Part/PN/SN)
             const tbody = document.getElementById('dash-table-body');
             tbody.innerHTML = '';
             
@@ -1005,9 +1007,9 @@
                     tbody.innerHTML += `
                         <tr class="clickable-row" onclick="showPartDetails('${p.name}', '${p.pn || ''}', '${p.sn || ''}')">
                             <td style="font-weight:600; color:var(--primary)">${p.name}</td>
-                            <td style="font-family:monospace; font-size:12px">${p.pn || '-'}</td>
-                            <td style="font-family:monospace; font-size:12px">${p.sn || '-'}</td>
-                            <td><b>${p.totalQty}</b></td>
+                            <td style="font-family:monospace; font-size:10px">${p.pn || '-'}</td>
+                            <td style="font-family:monospace; font-size:10px">${p.sn || '-'}</td>
+                            <td style="text-align:center;"><b>${p.totalQty}</b></td>
                         </tr>
                     `;
                 });
@@ -1047,10 +1049,11 @@
                 <table class="dash-table">
                     <thead>
                         <tr>
-                            <th style="width:120px">วันที่</th>
-                            <th style="width:150px">Transaction ID</th>
+                            <th style="width:100px">วันที่</th>
+                            <th style="width:120px">Transaction ID</th>
                             <th>รายการที่เบิก</th>
                             <th>ผู้ปฏิบัติ / ผู้ควบคุม</th>
+                            <th style="width:100px">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1059,21 +1062,21 @@
             const sortedTx = Object.entries(transactions).sort((a,b) => new Date(b[1].date) - new Date(a[1].date));
             
             if (sortedTx.length === 0) {
-                html += `<tr><td colspan="4" style="text-align:center; padding:20px;">ไม่พบข้อมูล</td></tr>`;
+                html += `<tr><td colspan="5" style="text-align:center; padding:20px;">ไม่พบข้อมูล</td></tr>`;
             } else {
                 sortedTx.forEach(([id, tx]) => {
                     const dStr = tx.date ? new Date(tx.date).toLocaleDateString('th-TH') : '-';
                     html += `
                         <tr>
                             <td>${dStr}</td>
-                            <td style="font-family: monospace; font-size: 11px;">
-                                ${id}
-                                <button class="btn-primary" style="padding:2px 8px; font-size:10px; margin-top:5px; display:block; width: 100%;" onclick="preparePrint('${id}')">🖨️ พิมพ์ฟอร์ม</button>
-                                <button class="btn-success" style="padding:2px 8px; font-size:10px; margin-top:5px; display:block; width: 100%;" onclick="editTransaction('${id}')">✏️ แก้ไขข้อมูล</button>
-                                <button style="padding:2px 8px; font-size:10px; margin-top:5px; display:block; width: 100%; background: #ef4444; color: white;" onclick="deleteTransaction('${id}')">🗑️ ลบข้อมูล</button>
-                            </td>
+                            <td style="font-family: monospace; font-size: 11px;">${id}</td>
                             <td style="font-size: 13px; color:#1e293b; line-height:1.4;">${tx.items.join(', ')}</td>
                             <td>${tx.people}</td>
+                            <td>
+                                <button class="btn-primary" style="padding:4px 8px; font-size:10px; margin-bottom:4px; display:block; width: 100%;" onclick="preparePrint('${id}')">🖨️ พิมพ์</button>
+                                <button class="btn-success" style="padding:4px 8px; font-size:10px; margin-bottom:4px; display:block; width: 100%;" onclick="editTransaction('${id}')">✏️ แก้ไข</button>
+                                <button style="padding:4px 8px; font-size:10px; display:block; width: 100%; background: #ef4444; color: white;" onclick="deleteTransaction('${id}')">🗑️ ลบ</button>
+                            </td>
                         </tr>
                     `;
                 });
@@ -1111,12 +1114,12 @@
                     <thead>
                         <tr>
                             <th>วันที่</th>
-                            <th>Transaction ID</th>
                             <th>หมายเลขเกษตร</th>
                             <th>อากาศยาน</th>
                             <th>จำนวน</th>
                             <th>S/N</th>
                             <th>ผู้ปฏิบัติ</th>
+                            <th>จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1127,17 +1130,81 @@
                 html += `
                     <tr>
                         <td>${dateStr}</td>
-                        <td style="font-family: monospace; font-size: 11px;">${u.TransactionID || '-'}</td>
                         <td style="font-weight:600;">${u.KasetNo || '-'}</td>
                         <td>${u.Aircraft || '-'}</td>
                         <td><b>${u.Qty}</b></td>
                         <td>${u.SN || '-'}</td>
                         <td>${u.Operator || '-'}</td>
+                        <td>
+                            <button class="btn-primary" style="padding:4px 8px; font-size:10px; margin-bottom:4px; display:block; width: 100%;" onclick="preparePrint('${u.TransactionID}')">🖨️ พิมพ์</button>
+                            <button class="btn-success" style="padding:4px 8px; font-size:10px; margin-bottom:4px; display:block; width: 100%;" onclick="editTransaction('${u.TransactionID}')">✏️ แก้ไข</button>
+                        </td>
                     </tr>
                 `;
             });
 
             html += `</tbody></table>`;
+            body.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        function showAllTransactions() {
+            if (allData.length === 0) return alert("ไม่มีข้อมูล");
+
+            const modal = document.getElementById('detail-modal');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+            
+            title.innerHTML = `📜 รายละเอียดข้อมูลการเบิกทั้งหมด (All Records)`;
+            
+            let html = `
+                <div style="overflow-x: auto;">
+                    <table class="dash-table" style="min-width: 1200px;">
+                        <thead>
+                            <tr>
+                                <th style="width:90px">วันที่</th>
+                                <th style="width:120px">Transaction ID</th>
+                                <th>อากาศยาน/หมายเลขเกษตร</th>
+                                <th>รายการวัสดุ</th>
+                                <th>P/N</th>
+                                <th>S/N</th>
+                                <th style="width:50px">จำนวน</th>
+                                <th>ผู้ปฏิบัติ / ผู้ควบคุม</th>
+                                <th style="width:100px">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            // Sort by date descending
+            const sortedData = [...allData].sort((a,b) => new Date(b.Date) - new Date(a.Date));
+            
+            sortedData.forEach(d => {
+                const dStr = d.Date ? new Date(d.Date).toLocaleDateString('th-TH') : '-';
+                html += `
+                    <tr>
+                        <td>${dStr}</td>
+                        <td style="font-family:monospace; font-size:10px;">${d.TransactionID || '-'}</td>
+                        <td>
+                            <b>${d.Aircraft || '-'}</b><br>
+                            <small>${d.KasetNo || '-'}</small>
+                        </td>
+                        <td style="color:var(--primary); font-weight:600;">${d.Item || '-'}</td>
+                        <td style="font-family:monospace; font-size:10px;">${d.PN || '-'}</td>
+                        <td style="font-family:monospace; font-size:10px;">${d.SN || '-'}</td>
+                        <td style="text-align:center;"><b>${d.Qty || 0}</b></td>
+                        <td><small>${d.Operator || '-'} / ${d.Supervisor || '-'}</small></td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:2px;">
+                                <button class="btn-primary" style="padding:4px 8px; font-size:10px;" onclick="preparePrint('${d.TransactionID}')">🖨️ พิมพ์</button>
+                                <button class="btn-success" style="padding:4px 8px; font-size:10px;" onclick="editTransaction('${d.TransactionID}')">✏️ แก้ไข</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table></div>`;
             body.innerHTML = html;
             modal.style.display = 'block';
         }
