@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการวัสดุอากาศยาน & Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .nav {
+            background: white;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-item {
+            padding: 15px 10px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--secondary);
+            border-bottom: 3px solid transparent;
+        }
+        .nav-item.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .view { display: none; }
+        .view.active { display: block; }
+
+        .card {
+            background: var(--card);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 24px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 14px; font-weight: 600; color: var(--secondary); margin-bottom: 4px; }
+        input[type="text"], input[type="number"], input[type="date"], select {
+            width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; box-sizing: border-box;
+            height: 42px; /* Set fixed height for consistency */
+        }
+
+        button { padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-add { background: #10b981; color: white; margin-top: 10px; }
+
+        .item-row {
+            display: grid; grid-template-columns: 3fr 2fr 2fr 1fr 2fr 40px; gap: 8px; align-items: center;
+            margin-bottom: 8px;
+        }
+        .item-header {
+            display: grid; grid-template-columns: 3fr 2fr 2fr 1fr 2fr 40px; gap: 8px;
+            margin-bottom: 8px; font-weight: bold; color: var(--secondary); font-size: 14px;
+        }
+        .item-row input { margin-bottom: 0; }
+        .item-row label { display: none; } /* Hide labels in rows, use header instead */
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 2000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Print Specific Styles */
+        @media print {
+            .nav, .nav-item, button, .btn-primary, .btn-success, .btn-add, select, input, #script-url { display: none !important; }
+            
+            /* If form view is active, print ONLY print-area */
+            body:has(#form-view.active) .container { display: none !important; }
+            body:has(#form-view.active) #print-area { display: block !important; }
+            
+            /* If dashboard is active, hide container to allow print-area */
+            body:has(#dashboard-view.active) .container { display: none !important; }
+            
+            body { background: white; font-family: 'Sarabun', 'TH Sarabun New', sans-serif; }
+        }
+        /* Dashboard Styles */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .stat-val { font-size: 24px; font-weight: bold; color: #1e293b; }
+        .stat-label { font-size: 14px; color: var(--secondary); }
+
+        table.dash-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        table.dash-table th, table.dash-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        table.dash-table th { background: #f8fafc; font-weight: 600; color: var(--secondary); position: sticky; top: 0; z-index: 10; }
+        .dash-table tbody tr:hover { background-color: #f1f5f9; }
+        
+        .card h3 { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            font-size: 1.1rem; 
+            color: #1e293b;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 24px;
+            border-radius: 16px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+            position: relative;
+        }
+        .close-modal {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            cursor: pointer;
+            color: var(--secondary);
+        }
+        .clickable-row { cursor: pointer; }
+        .clickable-row:hover { background-color: #eff6ff !important; }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        /* Screen Styles */
+        @media screen { #print-area { display: none; } }
+
+        /* Print Specific Styles */
+        .page { background: white; width: 210mm; min-height: 297mm; padding: 10mm; margin: 10mm auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box; }
+        .header-print { text-align: center; font-size: 18pt; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px; }
+        .info-row-print { margin: 10px 0; font-size: 14pt; display: flex; align-items: baseline; }
+        .label-print { font-weight: bold; margin-right: 5px; white-space: nowrap; }
+        .dot-line { border-bottom: 1px dotted black; flex-grow: 1; padding-left: 10px; min-height: 20px; }
+        .print-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12pt; }
+        .print-table th, .print-table td { border: 1px solid black; padding: 8px; text-align: center; }
+        .footer-print { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; font-size: 14pt; }
+
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { margin: 0; padding: 0; }
+            .page { margin: 0; box-shadow: none; width: 100%; height: auto; }
+            .no-print-ui, .nav, .container, .modal, .view { display: none !important; }
+            #print-area { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">กำลังดำเนินการ...</div>
+    </div>
+
+    <div class="nav no-print-ui">
+        <div class="nav-item active" onclick="showView('form')">📝 แบบฟอร์มเบิกอะไหล่</div>
+        <div class="nav-item" onclick="showView('dashboard')">📊 Dashboard สรุปข้อมูล</div>
+    </div>
+
+    <div class="container no-print-ui">
+        <!-- FORM VIEW -->
+        <div id="form-view" class="view active">
+            <h2 style="color: var(--primary);">📋 บันทึกข้อมูลการเบิกวัสดุ</h2>
+            
+            <div class="card" style="display: none;">
+                <div class="form-group">
+                    <label>Google Apps Script URL (เชื่อมต่อแล้ว)</label>
+                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbwWigL4SH6nOQ8qovGMGdz6CWLvyytJ7bt5MfYr8TQFEhR42JJz_ckxZQ3bZlyJDdP6/exec" style="background: #f0fdf4; color: #166534;" readonly>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="grid">
+                    <div class="form-group"><label>สถานที่</label><input type="text" id="ui-location" oninput="sync()"></div>
+                    <div class="form-group"><label>วันที่</label><input type="date" id="ui-date" oninput="sync()"></div>
+                    <div class="form-group"><label>แบบอากาศยาน</label><input type="text" id="ui-ac-type" oninput="sync()"></div>
+                    <div class="form-group"><label>หมายเลขเกษตร</label><input type="text" id="ui-kaset" oninput="sync()"></div>
+                </div>
+                <div class="form-group"><label>อ้างถึง</label><input type="text" id="ui-ref" oninput="sync()"></div>
+            </div>
+
+            <div class="card">
+                <label>ประเภทการตรวจซ่อม</label>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+                    <!-- แถวที่ 1 -->
+                    <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="ui-chk-1" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                        <span>ตรวจซ่อมพิเศษประจำปี</span>
+                    </label>
+                    
+                    <!-- แถวที่ 2 -->
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; min-width: 140px; cursor: pointer;">
+                            <input type="checkbox" id="ui-chk-2" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                            <span>ตามระยะเวลา</span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="text" id="ui-hrs" placeholder="ชม.บิน" style="width: 80px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;" oninput="sync()"> 
+                            <span style="font-size: 14px; color: var(--secondary);">ชม.บิน</span>
+                            <span style="font-size: 14px; color: var(--secondary); margin-left: 10px;">ครั้งที่</span>
+                            <input type="text" id="ui-round" placeholder="ครั้งที่" style="width: 80px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;" oninput="sync()">
+                        </div>
+                    </div>
+
+                    <!-- แถวที่ 3 -->
+                    <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="ui-chk-3" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                        <span>ตามอาการ</span>
+                    </label>
+
+                    <!-- แถวที่ 4 -->
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; min-width: 140px; cursor: pointer;">
+                            <input type="checkbox" id="ui-chk-4" onchange="sync()" style="width: 18px; height: 18px; cursor: pointer;"> 
+                            <span>อื่นๆ</span>
+                        </label>
+                        <input type="text" id="ui-other-txt" placeholder="ระบุรายละเอียด..." style="width: 250px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;" oninput="sync()">
+                    </div>
+
+                    <!-- หมายเหตุ -->
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px; border-top: 1px solid #eee; padding-top: 10px;">
+                        <label style="min-width: 140px; margin: 0; font-weight: bold; color: var(--secondary);">หมายเหตุ</label>
+                        <input type="text" id="ui-note" placeholder="หมายเหตุเพิ่มเติมเกี่ยวกับประเภทการซ่อม..." style="flex-grow: 1; padding: 6px; border: 1px solid var(--border); border-radius: 4px;" oninput="sync()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <label>รายการวัสดุ</label>
+                <div id="item-labels-header" class="item-header" style="display: none;">
+                    <div>รายการ</div>
+                    <div>P/N</div>
+                    <div>S/N</div>
+                    <div>จำนวน</div>
+                    <div>หมายเหตุ</div>
+                    <div></div>
+                </div>
+                <div id="ui-items-container"></div>
+                <button class="btn-add" onclick="addItem()">+ เพิ่มรายการ</button>
+            </div>
+
+            <div class="card">
+                <div class="grid">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label>ผู้ปฏิบัติ</label>
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+                            <input type="text" id="ui-op-name" placeholder="ชื่อ-นามสกุล" oninput="sync()">
+                            <input type="text" id="ui-op-rank" placeholder="ตำแหน่ง" oninput="sync()">
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label>ผู้ควบคุม</label>
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+                            <input type="text" id="ui-sv-name" placeholder="ชื่อ-นามสกุล" oninput="sync()">
+                            <input type="text" id="ui-sv-rank" placeholder="ตำแหน่ง" oninput="sync()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-success" style="flex: 1; padding: 15px;" onclick="saveToSheets()">💾 บันทึกลง Google Sheets</button>
+                <button id="print-btn" class="btn-primary" style="flex: 1; padding: 15px; opacity: 0.5; cursor: not-allowed;" onclick="handlePrint()" disabled>🖨️ พิมพ์เอกสาร (PDF)</button>
+            </div>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard-view" class="view">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: var(--primary); margin: 0;">📊 Dashboard สรุปการใช้อะไหล่</h2>
+                <button class="btn-primary" onclick="loadDashboardData()">🔄 รีเฟรชข้อมูล</button>
+            </div>
+            
+            <!-- Filters Section -->
+            <div class="card">
+                <h3 style="margin-top: 0; font-size: 16px; color: var(--secondary);">🔍 ตัวกรองข้อมูล</h3>
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                    <div>
+                        <label>วันที่เริ่มต้น</label>
+                        <input type="date" id="filter-start-date" onchange="renderDashboard()">
+                    </div>
+                    <div>
+                        <label>วันที่สิ้นสุด</label>
+                        <input type="date" id="filter-end-date" onchange="renderDashboard()">
+                    </div>
+                    <div>
+                        <label>อากาศยาน</label>
+                        <select id="ac-filter" onchange="renderDashboard()">
+                            <option value="all">ทั้งหมด</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>ค้นหาหมายเลขเกษตร</label>
+                        <input type="text" id="kaset-search" placeholder="ระบุหมายเลข..." oninput="renderDashboard()">
+                    </div>
+                    <div>
+                        <label>ค้นหา Transaction ID</label>
+                        <input type="text" id="tx-search" placeholder="ระบุ ID..." oninput="renderDashboard()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kaset Summary Section -->
+            <div class="card" id="kaset-summary-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">📦 สรุปการเบิกรายหมายเลขเกษตร (Kaset No. Summary)</h3>
+                </div>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table class="dash-table">
+                        <thead>
+                            <tr>
+                                <th>หมายเลขเกษตร</th>
+                                <th>อากาศยาน</th>
+                                <th>รายการที่เบิกทั้งหมด</th>
+                                <th>จำนวนรวม</th>
+                                <th>ล่าสุดเมื่อ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kaset-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+                    <h3 style="margin: 0; flex-grow: 1; border: none; padding: 0;">📝 รายการเบิกวัสดุทั้งหมด (All Records)</h3>
+                    <div style="display: flex; gap: 10px; align-items: flex-end;">
+                        <div>
+                            <label style="font-size: 12px;">กรองตามชื่ออะไหล่</label>
+                            <select id="part-filter" onchange="renderDashboard()" style="height: 38px;">
+                                <option value="all">ทั้งหมด</option>
+                            </select>
+                        </div>
+                        <button class="btn-success" onclick="exportToExcel()" style="height: 38px; display: flex; align-items: center; gap: 5px;">📗 Export Excel</button>
+                    </div>
+                </div>
+                <div style="max-height: 600px; overflow-y: auto;">
+                    <table class="dash-table">
+                        <thead>
+                            <tr>
+                                <th>รายการอะไหล่</th>
+                                <th>P/N</th>
+                                <th>S/N</th>
+                                <th>จำนวนที่ใช้รวม</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title" style="color: var(--primary); margin-top: 0;">รายละเอียด</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- PRINT AREA -->
+    <div id="print-area">
+        <div class="page">
+            <div class="header-print">แบบรายงานการใช้วัสดุอากาศยาน ในการซ่อมบำรุง</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr;">
+                <div class="info-row-print"><span class="label-print">สถานที่ :</span><span class="dot-line" id="p-location"></span></div>
+                <div class="info-row-print">
+                    <span class="label-print">วันที่ :</span><span id="p-day" style="min-width: 25px; border-bottom: 1px dotted black; text-align: center;"></span>
+                    <span class="label-print">เดือน :</span><span id="p-month" style="min-width: 70px; border-bottom: 1px dotted black; text-align: center;"></span>
+                    <span class="label-print">พ.ศ. :</span><span id="p-year" style="min-width: 40px; border-bottom: 1px dotted black; text-align: center;"></span>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr;">
+                <div class="info-row-print"><span class="label-print">แบบอากาศยาน :</span><span class="dot-line" id="p-ac-type"></span></div>
+                <div class="info-row-print"><span class="label-print">หมายเลขเกษตร :</span><span class="dot-line" id="p-kaset"></span></div>
+            </div>
+            <div class="info-row-print"><span class="label-print">อ้างถึง :</span><span class="dot-line" id="p-ref"></span></div>
+            <div style="margin: 5px 0; font-size: 14pt;">
+                ประเภทการตรวจซ่อม: 
+                [<span id="p-chk-1"> </span>] พิเศษประจำปี 
+                [<span id="p-chk-2"> </span>] ตามระยะเวลา (<span id="p-hrs">....</span>) ชม.บิน ครั้งที่ (<span id="p-round">....</span>) 
+                [<span id="p-chk-3"> </span>] ตามอาการ 
+                [<span id="p-chk-4"> </span>] อื่นๆ (<span id="p-other">....</span>)
+            </div>
+            <table class="print-table">
+                <thead><tr><th>ที่</th><th>รายการ</th><th>P/N</th><th>S/N</th><th>จำนวน</th><th>หมายเหตุ</th></tr></thead>
+                <tbody id="p-table-body"></tbody>
+            </table>
+            <div class="info-row-print"><span class="label-print">หมายเหตุ :</span><span class="dot-line" id="p-note"></span></div>
+            <div class="footer-print">
+                <div><p>ผู้ปฏิบัติ : .................................</p><p>( <span id="p-op-name"></span> )</p><p>ตำแหน่ง <span id="p-op-rank"></span></p></div>
+                <div><p>ผู้ควบคุม : .................................</p><p>( <span id="p-sv-name"></span> )</p><p>ตำแหน่ง <span id="p-sv-rank"></span></p></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleLoading(show, text = "กำลังดำเนินการ...") {
+            const loading = document.getElementById('loading');
+            const loadingText = document.getElementById('loading-text');
+            loadingText.textContent = text;
+            loading.style.display = show ? 'flex' : 'none';
+        }
+
+        let itemCount = 0;
+        let allData = [];
+        let acChart, trendChart;
+
+        let isSaved = false;
+
+        function showView(view) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(view + '-view').classList.add('active');
+            
+            const navItems = document.querySelectorAll('.nav-item');
+            if (view === 'form') {
+                navItems[0].classList.add('active');
+            } else {
+                navItems[1].classList.add('active');
+                loadDashboardData();
+            }
+        }
+
+        function markUnsaved() {
+            isSaved = false;
+            const printBtn = document.getElementById('print-btn');
+            printBtn.disabled = true;
+            printBtn.style.opacity = "0.5";
+            printBtn.style.cursor = "not-allowed";
+        }
+
+        function handlePrint() {
+            if (!isSaved) {
+                alert("กรุณากดบันทึกข้อมูลลง Google Sheets ก่อนพิมพ์เอกสารครับ");
+                return;
+            }
+            window.print();
+        }
+
+        function exportToExcel() {
+            if (allData.length === 0) {
+                alert("ไม่มีข้อมูลที่จะส่งออก");
+                return;
+            }
+
+            // Prepare data for Excel
+            const exportData = allData.map((d, index) => ({
+                "ลำดับ": index + 1,
+                "วันที่": d.Date ? new Date(d.Date).toLocaleDateString('th-TH') : "-",
+                "แบบอากาศยาน": d.Aircraft || "-",
+                "หมายเลขเกษตร": d.KasetNo || "-",
+                "รายการอะไหล่": d.Item || "-",
+                "P/N": d.PN || "-",
+                "S/N": d.SN || "-",
+                "จำนวน": d.Qty || 0,
+                "สถานที่": d.Location || "-",
+                "อ้างถึง": d.Ref || "-",
+                "ประเภทการตรวจซ่อม": d.RepairType || "-",
+                "ผู้ปฏิบัติ": d.Operator || "-",
+                "ผู้ควบคุม": d.Supervisor || "-",
+                "หมายเหตุ": d.Note || "-",
+                "Transaction ID": d.TransactionID || "-"
+            }));
+
+            // Create Worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            // Create Workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "All Records");
+
+            // Save File
+            const fileName = `รายงานการเบิกวัสดุ_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function addItem() {
+            itemCount++;
+            document.getElementById('item-labels-header').style.display = 'grid';
+            const container = document.getElementById('ui-items-container');
+            const div = document.createElement('div');
+            div.className = 'item-row';
+            div.id = `row-${itemCount}`;
+            div.innerHTML = `
+                <input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()">
+                <input type="text" class="i-pn" placeholder="P/N" oninput="sync()">
+                <input type="text" class="i-sn" placeholder="S/N" oninput="sync()">
+                <input type="number" class="i-qty" value="1" oninput="sync()">
+                <input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()">
+                <button onclick="removeItem(${itemCount})" style="background:#fee2e2; color:#ef4444; padding:8px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">🗑️</button>
+            `;
+            container.appendChild(div);
+            sync();
+        }
+
+        function removeItem(id) { 
+            document.getElementById(`row-${id}`).remove(); 
+            if(document.querySelectorAll('.item-row').length === 0) {
+                document.getElementById('item-labels-header').style.display = 'none';
+            }
+            sync(); 
+        }
+
+        function sync() {
+            markUnsaved();
+            const months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            document.getElementById('p-location').textContent = document.getElementById('ui-location').value;
+            const dv = document.getElementById('ui-date').value;
+            if(dv) {
+                const d = new Date(dv);
+                document.getElementById('p-day').textContent = d.getDate();
+                document.getElementById('p-month').textContent = months[d.getMonth()];
+                document.getElementById('p-year').textContent = d.getFullYear() + 543;
+            }
+            document.getElementById('p-ac-type').textContent = document.getElementById('ui-ac-type').value;
+            document.getElementById('p-kaset').textContent = document.getElementById('ui-kaset').value;
+            document.getElementById('p-ref').textContent = document.getElementById('ui-ref').value;
+            document.getElementById('p-note').textContent = document.getElementById('ui-note').value;
+            
+            document.getElementById('p-chk-1').textContent = document.getElementById('ui-chk-1').checked ? '✓' : ' ';
+            document.getElementById('p-chk-2').textContent = document.getElementById('ui-chk-2').checked ? '✓' : ' ';
+            document.getElementById('p-chk-3').textContent = document.getElementById('ui-chk-3').checked ? '✓' : ' ';
+            document.getElementById('p-chk-4').textContent = document.getElementById('ui-chk-4').checked ? '✓' : ' ';
+            document.getElementById('p-hrs').textContent = document.getElementById('ui-hrs').value || '....';
+            document.getElementById('p-round').textContent = document.getElementById('ui-round').value || '....';
+            document.getElementById('p-other').textContent = document.getElementById('ui-other-txt').value || '....';
+
+            document.getElementById('p-op-name').textContent = document.getElementById('ui-op-name').value;
+            document.getElementById('p-op-rank').textContent = document.getElementById('ui-op-rank').value;
+            document.getElementById('p-sv-name').textContent = document.getElementById('ui-sv-name').value;
+            document.getElementById('p-sv-rank').textContent = document.getElementById('ui-sv-rank').value;
+
+            const pBody = document.getElementById('p-table-body');
+            pBody.innerHTML = '';
+            const rows = document.querySelectorAll('.item-row');
+            rows.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${idx+1}</td><td style="text-align:left">${row.querySelector('.i-name').value}</td><td>${row.querySelector('.i-pn').value}</td><td>${row.querySelector('.i-sn').value}</td><td>${row.querySelector('.i-qty').value}</td><td>${row.querySelector('.i-note').value}</td>`;
+                pBody.appendChild(tr);
+            });
+            for(let i=rows.length; i<12; i++) {
+                pBody.innerHTML += `<tr><td>${i+1}</td><td></td><td></td><td></td><td></td><td></td></tr>`;
+            }
+        }
+
+        async function saveToSheets() {
+            const url = document.getElementById('script-url').value;
+            if(!url) return alert("กรุณาวาง Apps Script URL ก่อนครับ");
+
+            toggleLoading(true, "กำลังบันทึกข้อมูล...");
+
+            const timestamp = new Date();
+            const transactionId = "TX-" + timestamp.getTime();
+
+            // สรุปประเภทการซ่อมพร้อมรายละเอียด
+            let repairTypeLabel = "";
+            if (document.getElementById('ui-chk-1').checked) repairTypeLabel += "พิเศษ ";
+            if (document.getElementById('ui-chk-2').checked) {
+                repairTypeLabel += "ระยะเวลา(" + document.getElementById('ui-hrs').value + " ชม.บิน ครั้งที่ " + document.getElementById('ui-round').value + ") ";
+            }
+            if (document.getElementById('ui-chk-3').checked) repairTypeLabel += "ตามอาการ ";
+            if (document.getElementById('ui-chk-4').checked) repairTypeLabel += "อื่นๆ(" + document.getElementById('ui-other-txt').value + ") ";
+
+            const data = {
+                transactionId: transactionId,
+                location: document.getElementById('ui-location').value,
+                date: document.getElementById('ui-date').value,
+                aircraft: document.getElementById('ui-ac-type').value,
+                kasetNo: document.getElementById('ui-kaset').value,
+                ref: document.getElementById('ui-ref').value,
+                repairType: repairTypeLabel.trim(),
+                opName: document.getElementById('ui-op-name').value,
+                opRank: document.getElementById('ui-op-rank').value,
+                svName: document.getElementById('ui-sv-name').value,
+                svRank: document.getElementById('ui-sv-rank').value,
+                note: document.getElementById('ui-note').value,
+                items: Array.from(document.querySelectorAll('.item-row')).map(row => ({
+                    name: row.querySelector('.i-name').value,
+                    pn: row.querySelector('.i-pn').value,
+                    sn: row.querySelector('.i-sn').value,
+                    qty: row.querySelector('.i-qty').value,
+                    note: row.querySelector('.i-note').value
+                }))
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                isSaved = true;
+                const printBtn = document.getElementById('print-btn');
+                printBtn.disabled = false;
+                printBtn.style.opacity = "1";
+                printBtn.style.cursor = "pointer";
+                
+                alert("บันทึกข้อมูลสำเร็จ! คุณสามารถพิมพ์เอกสารได้แล้วครับ");
+            } catch (error) {
+                console.error(error);
+                alert("เกิดข้อผิดพลาดในการบันทึก");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function loadDashboardData() {
+            const url = document.getElementById('script-url').value;
+            if(!url) return;
+            
+            toggleLoading(true, "กำลังโหลดข้อมูล Dashboard...");
+            
+            try {
+                const res = await fetch(url);
+                const rawData = await res.json();
+                allData = rawData.map(d => ({
+                    Aircraft: d["แบบอากาศยาน"] || d.Aircraft || d.Aircraft,
+                    Item: d["รายการอะไหล่"] || d.Item,
+                    PN: d["P/N"] || d.PN,
+                    SN: d["S/N"] || d.SN,
+                    Qty: d["จำนวน"] || d.Qty,
+                    Date: d["วันที่"] || d.Date,
+                    KasetNo: d["หมายเลขเกษตร"] || d.KasetNo,
+                    TransactionID: d["TransactionID"],
+                    Location: d["สถานที่"] || d.Location,
+                    Ref: d["อ้างถึง"] || d.Ref,
+                    RepairType: d["ประเภทการตรวจซ่อม"] || d.RepairType,
+                    Operator: d["ผู้ปฏิบัติ"] || d.Operator,
+                    OpRank: d["ตำแหน่ง(ผู้ปฏิบัติ)"] || d.OpRank,
+                    Supervisor: d["ผู้ควบคุม"] || d.Supervisor,
+                    SvRank: d["ตำแหน่ง(ผู้ควบคุม)"] || d.SvRank,
+                    Note: d["หมายเหตุ"] || d.Note,
+                    Timestamp: d["Timestamp"]
+                }));
+                
+                // Populate aircraft filter
+                const acList = [...new Set(allData.map(d => d.Aircraft).filter(x => x))].sort();
+                const acFilter = document.getElementById('ac-filter');
+                acFilter.innerHTML = '<option value="all">ทั้งหมด</option>';
+                acList.forEach(ac => acFilter.innerHTML += `<option value="${ac}">${ac}</option>`);
+
+                // Populate parts filter
+                const partList = [...new Set(allData.map(d => d.Item).filter(x => x))].sort();
+                const partFilter = document.getElementById('part-filter');
+                partFilter.innerHTML = '<option value="all">ทั้งหมด</option>';
+                partList.forEach(p => partFilter.innerHTML += `<option value="${p}">${p}</option>`);
+                
+                renderDashboard();
+            } catch (e) { 
+                console.error(e); 
+                alert("ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        function renderDashboard() {
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+            const acFilter = document.getElementById('ac-filter').value;
+            const partFilter = document.getElementById('part-filter').value;
+            const kasetSearch = document.getElementById('kaset-search').value.toLowerCase();
+            const txSearch = document.getElementById('tx-search').value.toLowerCase();
+            
+            const filtered = allData.filter(d => {
+                let itemDate = '';
+                if (d.Date) {
+                    try {
+                        const dateObj = new Date(d.Date);
+                        if (!isNaN(dateObj.getTime())) {
+                            // Convert to YYYY-MM-DD in local time
+                            const year = dateObj.getFullYear();
+                            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                            const day = String(dateObj.getDate()).padStart(2, '0');
+                            itemDate = `${year}-${month}-${day}`;
+                        }
+                    } catch (e) {
+                        itemDate = String(d.Date).split('T')[0];
+                    }
+                }
+                
+                const matchStart = !startDate || itemDate >= startDate;
+                const matchEnd = !endDate || itemDate <= endDate;
+                const matchAc = acFilter === 'all' || d.Aircraft === acFilter;
+                const matchPart = partFilter === 'all' || d.Item === partFilter;
+                const matchKaset = !kasetSearch || (d.KasetNo && String(d.KasetNo).toLowerCase().includes(kasetSearch));
+                const matchTx = !txSearch || (d.TransactionID && String(d.TransactionID).toLowerCase().includes(txSearch));
+                
+                return matchStart && matchEnd && matchAc && matchPart && matchKaset && matchTx;
+            });
+            
+            const summary = {};
+            const kasetSummary = {};
+            let totalQty = 0;
+            const acUsage = {};
+            const transactions = {};
+
+            filtered.forEach(d => {
+                const q = parseInt(d.Qty || 0);
+                const partKey = d.Item + '|' + d.PN;
+                if(!summary[partKey]) summary[partKey] = { name: d.Item, pn: d.PN, qty: 0 };
+                summary[partKey].qty += q;
+                
+                // Summary by Kaset No
+                if (d.KasetNo) {
+                    if (!kasetSummary[d.KasetNo]) {
+                        kasetSummary[d.KasetNo] = { 
+                            kaset: d.KasetNo, 
+                            ac: d.Aircraft, 
+                            items: new Set(), 
+                            totalQty: 0, 
+                            lastDate: d.Date 
+                        };
+                    }
+                    kasetSummary[d.KasetNo].items.add(d.Item);
+                    kasetSummary[d.KasetNo].totalQty += q;
+                    if (new Date(d.Date) > new Date(kasetSummary[d.KasetNo].lastDate)) {
+                        kasetSummary[d.KasetNo].lastDate = d.Date;
+                        kasetSummary[d.KasetNo].ac = d.Aircraft;
+                    }
+                }
+
+                if(d.Aircraft) acUsage[d.Aircraft] = (acUsage[d.Aircraft] || 0) + 1;
+
+                // Group by Transaction ID for History
+                const txId = d.TransactionID || "Unknown";
+                if(!transactions[txId]) {
+                    transactions[txId] = {
+                        date: d.Date,
+                        aircraft: d.Aircraft,
+                        kaset: d.KasetNo,
+                        items: [],
+                        people: (d.Operator || '-') + ' / ' + (d.Supervisor || '-'),
+                        searchString: `${d.Date} ${d.Aircraft} ${d.KasetNo} ${d.Operator} ${d.Supervisor}`.toLowerCase()
+                    };
+                }
+                transactions[txId].items.push(`${d.Item} (${q})`);
+                transactions[txId].searchString += ` ${d.Item}`.toLowerCase();
+            });
+
+            // Render Kaset Table
+            const kTableBody = document.getElementById('kaset-table-body');
+            kTableBody.innerHTML = '';
+            Object.values(kasetSummary)
+                .sort((a,b) => new Date(b.lastDate) - new Date(a.lastDate))
+                .forEach(k => {
+                    const dStr = k.lastDate ? new Date(k.lastDate).toLocaleDateString('th-TH') : '-';
+                    kTableBody.innerHTML += `
+                        <tr class="clickable-row" onclick="showKasetDetails('${k.kaset}')">
+                            <td style="font-weight: bold; color: var(--primary);">${k.kaset}</td>
+                            <td>${k.ac || '-'}</td>
+                            <td style="font-size: 13px;">${Array.from(k.items).join(', ')}</td>
+                            <td>${k.totalQty}</td>
+                            <td>${dStr}</td>
+                        </tr>
+                    `;
+                });
+
+            // Render All Records Table (Grouped by Part/PN/SN)
+            const tbody = document.getElementById('dash-table-body');
+            tbody.innerHTML = '';
+            
+            const partSummary = {};
+            filtered.forEach(d => {
+                const key = `${d.Item}|${d.PN}|${d.SN}`;
+                if (!partSummary[key]) {
+                    partSummary[key] = {
+                        name: d.Item,
+                        pn: d.PN,
+                        sn: d.SN,
+                        totalQty: 0
+                    };
+                }
+                partSummary[key].totalQty += parseInt(d.Qty || 0);
+            });
+
+            Object.values(partSummary)
+                .sort((a,b) => a.name.localeCompare(b.name))
+                .forEach(p => {
+                    tbody.innerHTML += `
+                        <tr class="clickable-row" onclick="showPartDetails('${p.name}', '${p.pn || ''}', '${p.sn || ''}')">
+                            <td style="font-weight:600; color:var(--primary)">${p.name}</td>
+                            <td style="font-family:monospace; font-size:12px">${p.pn || '-'}</td>
+                            <td style="font-family:monospace; font-size:12px">${p.sn || '-'}</td>
+                            <td><b>${p.totalQty}</b></td>
+                        </tr>
+                    `;
+                });
+        }
+
+        function showKasetDetails(kasetNo) {
+            // แปลงทั้งคู่เป็น String เพื่อป้องกันปัญหา Data Type (Number vs String)
+            const searchVal = String(kasetNo).trim();
+            const data = allData.filter(d => String(d.KasetNo).trim() === searchVal);
+            
+            const modal = document.getElementById('detail-modal');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+            
+            title.innerHTML = `📜 ประวัติการเบิก: หมายเลข <span style="color:#2563eb">${kasetNo}</span>`;
+            
+            // Group items by Transaction ID
+            const transactions = {};
+            data.forEach(d => {
+                const txId = d.TransactionID || "Unknown";
+                if(!transactions[txId]) {
+                    transactions[txId] = {
+                        date: d.Date,
+                        items: [],
+                        people: (d.Operator || '-') + ' / ' + (d.Supervisor || '-')
+                    };
+                }
+                const q = parseInt(d.Qty || 0);
+                transactions[txId].items.push(`${d.Item} (${q})`);
+            });
+
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <span class="badge" style="background:#ecfdf5; color:#065f46;">อากาศยาน: ${data[0]?.Aircraft || '-'}</span>
+                    <span class="badge">จำนวนครั้งที่เบิก: ${Object.keys(transactions).length} ครั้ง</span>
+                </div>
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th style="width:120px">วันที่</th>
+                            <th style="width:150px">Transaction ID</th>
+                            <th>รายการที่เบิก</th>
+                            <th>ผู้ปฏิบัติ / ผู้ควบคุม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            const sortedTx = Object.entries(transactions).sort((a,b) => new Date(b[1].date) - new Date(a[1].date));
+            
+            if (sortedTx.length === 0) {
+                html += `<tr><td colspan="4" style="text-align:center; padding:20px;">ไม่พบข้อมูล</td></tr>`;
+            } else {
+                sortedTx.forEach(([id, tx]) => {
+                    const dStr = tx.date ? new Date(tx.date).toLocaleDateString('th-TH') : '-';
+                    html += `
+                        <tr>
+                            <td>${dStr}</td>
+                            <td style="font-family: monospace; font-size: 11px;">
+                                ${id}
+                                <button class="btn-primary" style="padding:2px 8px; font-size:10px; margin-top:5px; display:block" onclick="preparePrint('${id}')">🖨️ พิมพ์ฟอร์ม</button>
+                            </td>
+                            <td style="font-size: 13px; color:#1e293b; line-height:1.4;">${tx.items.join(', ')}</td>
+                            <td>${tx.people}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            html += `</tbody></table>`;
+            body.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        function showPartDetails(partName, pn, sn) {
+            // ปรับค่า input ให้เป็น string และจัดการกรณี 'undefined' หรือค่าว่าง
+            const targetPN = (!pn || pn === 'undefined') ? '' : String(pn).trim();
+            const targetSN = (!sn || sn === 'undefined') ? '' : String(sn).trim();
+
+            const usages = allData.filter(d => {
+                const itemPN = (!d.PN || d.PN === 'undefined') ? '' : String(d.PN).trim();
+                const itemSN = (!d.SN || d.SN === 'undefined') ? '' : String(d.SN).trim();
+                
+                return d.Item === partName && itemPN === targetPN && itemSN === targetSN;
+            });
+
+            const modal = document.getElementById('detail-modal');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+            
+            title.innerHTML = `🔧 ประวัติการใช้งานอะไหล่: <span style="color:#2563eb">${partName}</span> <br><small style="color:var(--secondary)">P/N: ${targetPN || '-'} | S/N: ${targetSN || '-'}</small>`;
+            
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <span class="badge">ใช้ไปทั้งหมด ${usages.reduce((acc, curr) => acc + parseInt(curr.Qty||0), 0)} ชิ้น</span>
+                    <span class="badge" style="background:#fef3c7; color:#92400e;">จำนวนครั้งที่เบิก: ${usages.length}</span>
+                </div>
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th>วันที่</th>
+                            <th>Transaction ID</th>
+                            <th>หมายเลขเกษตร</th>
+                            <th>อากาศยาน</th>
+                            <th>จำนวน</th>
+                            <th>S/N</th>
+                            <th>ผู้ปฏิบัติ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            usages.sort((a,b) => new Date(b.Date) - new Date(a.Date)).forEach(u => {
+                const dateStr = u.Date ? new Date(u.Date).toLocaleDateString('th-TH') : '-';
+                html += `
+                    <tr>
+                        <td>${dateStr}</td>
+                        <td style="font-family: monospace; font-size: 11px;">${u.TransactionID || '-'}</td>
+                        <td style="font-weight:600;">${u.KasetNo || '-'}</td>
+                        <td>${u.Aircraft || '-'}</td>
+                        <td><b>${u.Qty}</b></td>
+                        <td>${u.SN || '-'}</td>
+                        <td>${u.Operator || '-'}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            body.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('detail-modal');
+            if (event.target == modal) closeModal();
+        }
+
+        function preparePrint(txId) {
+            const items = allData.filter(d => d.TransactionID === txId);
+            if (items.length === 0) return alert("ไม่พบข้อมูลสำหรับการพิมพ์");
+
+            const main = items[0];
+            
+            // Populate Print Header Info
+            document.getElementById('p-location').textContent = main.Location || '-';
+            if (main.Date) {
+                const months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+                const d = new Date(main.Date);
+                document.getElementById('p-day').textContent = d.getDate();
+                document.getElementById('p-month').textContent = months[d.getMonth()];
+                document.getElementById('p-year').textContent = d.getFullYear() + 543;
+            }
+            document.getElementById('p-ac-type').textContent = main.Aircraft || '-';
+            document.getElementById('p-kaset').textContent = main.KasetNo || '-';
+            document.getElementById('p-ref').textContent = main.Ref || '-';
+            document.getElementById('p-note').textContent = main.Note || '-';
+
+            // Repair Types
+            const rt = (main.RepairType || "").toLowerCase();
+            document.getElementById('p-chk-1').textContent = rt.includes('พิเศษ') ? '✓' : ' ';
+            document.getElementById('p-chk-2').textContent = rt.includes('ระยะเวลา') ? '✓' : ' ';
+            document.getElementById('p-chk-3').textContent = rt.includes('ตามอาการ') ? '✓' : ' ';
+            document.getElementById('p-chk-4').textContent = rt.includes('อื่นๆ') ? '✓' : ' ';
+            
+            // Try to extract hours if exists in string "ระยะเวลา(XXX ชม.)"
+            const hrsMatch = rt.match(/ระยะเวลา\((.*?) ชม\.\)/);
+            document.getElementById('p-hrs').textContent = hrsMatch ? hrsMatch[1] : '....';
+            
+            const otherMatch = rt.match(/อื่นๆ\((.*?)\)/);
+            document.getElementById('p-other').textContent = otherMatch ? otherMatch[1] : '....';
+
+            document.getElementById('p-op-name').textContent = main.Operator || '-';
+            document.getElementById('p-op-rank').textContent = main.OpRank || '-';
+            document.getElementById('p-sv-name').textContent = main.Supervisor || '-';
+            document.getElementById('p-sv-rank').textContent = main.SvRank || '-';
+
+            // Populate Items Table
+            const pBody = document.getElementById('p-table-body');
+            pBody.innerHTML = '';
+            items.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${idx+1}</td>
+                    <td style="text-align:left">${item.Item}</td>
+                    <td>${item.PN || '-'}</td>
+                    <td>${item.SN || '-'}</td>
+                    <td>${item.Qty}</td>
+                    <td>${item.Note || ''}</td>
+                `;
+                pBody.appendChild(tr);
+            });
+            // Fill empty rows
+            for(let i=items.length; i<12; i++) {
+                pBody.innerHTML += `<tr><td>${i+1}</td><td></td><td></td><td></td><td></td><td></td></tr>`;
+            }
+
+            // Trigger Print
+            window.print();
+        }
+
+        document.getElementById('ui-date').value = new Date().toISOString().split('T')[0];
+        addItem();
+    </script>
+</body>
+</html>
