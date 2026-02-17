@@ -71,6 +71,23 @@ function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     var timestamp = new Date();
+    
+    // Handle Delete Action
+    if (data.action === 'delete') {
+      var transactionId = data.transactionId;
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var idColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+        for (var i = idColumn.length - 1; i >= 0; i--) {
+          if (String(idColumn[i][0]).trim() === String(transactionId).trim()) {
+            sheet.deleteRow(i + 2);
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({"result": "success", "message": "Deleted"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var transactionId = data.transactionId || ("TX-" + timestamp.getTime());
     
     // Edit Mode: Remove existing rows with the same TransactionID before re-adding
