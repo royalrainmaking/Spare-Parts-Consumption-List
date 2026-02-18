@@ -84,6 +84,55 @@ with col_f2:
     supervisor = st.text_input("ผู้ควบคุม")
     supervisor_rank = st.text_input("ยศ/ตำแหน่ง (ผู้ควบคุม)")
 
+st.divider()
+st.subheader("📂 อัปโหลดไฟล์เพื่อจัดหมวดหมู่")
+uploaded_file = st.file_uploader("เลือกไฟล์ PDF หรือ Word เพื่อจัดเก็บตามประเภทเครื่อง", type=["pdf", "docx", "doc"])
+
+if uploaded_file is not None:
+    import os
+    import shutil
+    from pypdf import PdfReader
+    from docx import Document
+    
+    # Create folders
+    base_dir = "IPC"
+    for m_type in ["CASA-300", "CASA-400", "Others"]:
+        os.makedirs(os.path.join(base_dir, m_type), exist_ok=True)
+    
+    # Read file to detect type
+    try:
+        text = ""
+        file_ext = uploaded_file.name.split('.')[-1].lower()
+        
+        if file_ext == "pdf":
+            reader = PdfReader(uploaded_file)
+            for page in reader.pages:
+                text += (page.extract_text() or "")
+        elif file_ext == "docx":
+            doc = Document(uploaded_file)
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+        elif file_ext == "doc":
+            # .doc files are binary and python-docx doesn't support them directly
+            # We'll use the filename for detection as a fallback
+            text = uploaded_file.name.upper()
+        
+        text = text.upper()
+        detected_type = "Others"
+        if "CASA-300" in text or "CASA 300" in text:
+            detected_type = "CASA-300"
+        elif "CASA-400" in text or "CASA 400" in text:
+            detected_type = "CASA-400"
+        
+        # Save file
+        save_path = os.path.join(base_dir, detected_type, uploaded_file.name)
+        with open(save_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        st.success(f"จัดเก็บไฟล์ '{uploaded_file.name}' ไปยังโฟลเดอร์ '{detected_type}' เรียบร้อยแล้ว")
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการประมวลผลไฟล์: {e}")
+
 if st.button("บันทึกข้อมูล"):
     with st.spinner("กำลังบันทึกข้อมูล..."):
         # Simulate saving delay

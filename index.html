@@ -7,6 +7,8 @@
     <link rel="icon" href="data:,">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -149,6 +151,12 @@
         table.dash-table th { background: #f8fafc; font-weight: 600; color: var(--secondary); position: sticky; top: 0; z-index: 10; }
         .dash-table tbody tr:hover { background-color: #f1f5f9; }
         
+        .required::after {
+            content: " *";
+            color: #ef4444;
+            font-weight: bold;
+        }
+
         .card h3 { 
             display: flex; 
             align-items: center; 
@@ -372,6 +380,26 @@
             div[style*="border-bottom: 2px solid #e2e8f0"] button {
                 width: 100%;
             }
+
+            /* IPC Mobile adjustments */
+            .ipc-sidebar {
+                position: absolute;
+                left: -260px;
+                top: 0;
+                bottom: 0;
+                z-index: 1000;
+                transition: left 0.3s;
+                box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+            }
+            .ipc-sidebar.active {
+                left: 0;
+            }
+            #ipc-menu-btn {
+                display: flex !important;
+            }
+            .ipc-toolbar {
+                padding: 10px;
+            }
         }
 
         /* Custom Popup/Toast Styles */
@@ -411,6 +439,161 @@
         #password-modal {
             z-index: 4000; /* Higher than detail-modal (1000) and toast (3000) */
         }
+        /* IPC Modal Specific */
+        #ipc-modal .modal-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 0;
+        }
+        .ipc-layout {
+            display: flex;
+            height: 100%;
+            overflow: hidden;
+        }
+        .ipc-sidebar {
+            width: 250px;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            background: #f8fafc;
+            padding: 15px;
+        }
+        .ipc-parts-sidebar {
+            display: none;
+        }
+        .part-extract-item {
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .part-extract-item:hover {
+            border-color: var(--primary);
+            background: #f0f7ff;
+            transform: translateY(-2px);
+        }
+        .part-extract-pn {
+            font-weight: bold;
+            color: var(--primary);
+            font-family: monospace;
+            font-size: 14px;
+            display: block;
+        }
+        .part-extract-name {
+            font-size: 12px;
+            color: var(--secondary);
+            margin-top: 4px;
+            display: block;
+        }
+        .ipc-viewer-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: #525659;
+            position: relative;
+            overflow: hidden;
+        }
+        .ipc-toolbar {
+            background: #323639;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        #pdf-canvas-container {
+            flex-grow: 1;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            gap: 20px;
+        }
+        .pdf-page {
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            background: white;
+            position: relative;
+        }
+        .ipc-file-item {
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 5px;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid transparent;
+        }
+        .ipc-file-item:hover {
+            background: #e2e8f0;
+        }
+        .ipc-file-item.active {
+            background: var(--primary);
+            color: white;
+        }
+        .capture-box {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            z-index: 2000;
+            width: 300px;
+            border: 2px solid var(--primary);
+        }
+        .text-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            opacity: 0.2;
+            line-height: 1.0;
+        }
+        .text-layer > span {
+            color: transparent;
+            position: absolute;
+            white-space: pre;
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
+        .selection-rect {
+            position: absolute;
+            border: 2px dashed #ff0000;
+            background: rgba(255, 0, 0, 0.1);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .ipc-crosshair {
+            position: absolute;
+            border-top: 1px solid rgba(255, 0, 0, 0.5);
+            border-left: 1px solid rgba(255, 0, 0, 0.5);
+            pointer-events: none;
+            z-index: 999;
+            display: none;
+        }
+        .mode-btn {
+            background: #475569;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .mode-btn.active {
+            background: #10b981;
+        }
+        ::selection {
+            background: rgba(0, 0, 255, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -448,22 +631,22 @@
             <div class="card" style="display: none;">
                 <div class="form-group">
                     <label>Google Apps Script URL (เชื่อมต่อแล้ว)</label>
-                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbwxHgPaYO42ipmBD0Vo2513k1TJWuQTdWKIL-3Zt7vP-HjRAhnqLlESxsXlUStKLav4/exec" style="background: #f0fdf4; color: #166534;" readonly>
+                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbwFdAc3izfg7hXFHdvuQc-ot-II5NcwGiPOowkhFiD9mOCmmL6jtucHuOTJaGfpl5K9/exec" style="background: #f0fdf4; color: #166534;" readonly>
                 </div>
             </div>
 
             <div class="card">
                 <div class="grid">
-                    <div class="form-group"><label>สถานที่</label><input type="text" id="ui-location" oninput="sync()"></div>
-                    <div class="form-group"><label>วันที่</label><input type="date" id="ui-date" oninput="sync()"></div>
-                    <div class="form-group"><label>แบบอากาศยาน</label><input type="text" id="ui-ac-type" oninput="sync()"></div>
-                    <div class="form-group"><label>หมายเลขเกษตร</label><input type="text" id="ui-kaset" oninput="sync()"></div>
+                    <div class="form-group"><label class="required">สถานที่</label><input type="text" id="ui-location" oninput="sync()"></div>
+                    <div class="form-group"><label class="required">วันที่</label><input type="date" id="ui-date" oninput="sync()"></div>
+                    <div class="form-group"><label class="required">แบบอากาศยาน</label><input type="text" id="ui-ac-type" oninput="sync()"></div>
+                    <div class="form-group"><label class="required">หมายเลขเกษตร</label><input type="text" id="ui-kaset" oninput="sync()"></div>
                 </div>
                 <div class="form-group"><label>อ้างถึง</label><input type="text" id="ui-ref" oninput="sync()"></div>
             </div>
 
             <div class="card">
-                <label>ประเภทการตรวจซ่อม (เลือกได้เพียงอย่างเดียว)</label>
+                <label class="required">ประเภทการตรวจซ่อม (เลือกได้เพียงอย่างเดียว)</label>
                 <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
                     <!-- แถวที่ 1 -->
                     <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; margin: 0; cursor: pointer;">
@@ -509,30 +692,33 @@
             </div>
 
             <div class="card">
-                <label>รายการวัสดุ</label>
+                <label class="required">รายการวัสดุ</label>
                 <div id="item-labels-header" class="item-header" style="display: none;">
-                    <div>รายการ</div>
-                    <div>P/N</div>
+                    <div class="required">รายการ</div>
+                    <div class="required">P/N</div>
                     <div>S/N</div>
-                    <div>จำนวน</div>
+                    <div class="required">จำนวน</div>
                     <div>หมายเหตุ</div>
                     <div></div>
                 </div>
                 <div id="ui-items-container"></div>
-                <button class="btn-add" onclick="addItem()">+ เพิ่มรายการ</button>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="btn-add" onclick="addItem()" style="margin-top: 0;">+ เพิ่มรายการ</button>
+                    <button class="btn-primary" onclick="openIpcModal()" style="background: #8b5cf6;">📖 เปิด IPC (PDF)</button>
+                </div>
             </div>
 
             <div class="card">
                 <div class="grid">
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <label>ผู้ปฏิบัติ</label>
+                        <label class="required">ผู้ปฏิบัติ</label>
                         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
                             <input type="text" id="ui-op-name" placeholder="ชื่อ-นามสกุล" oninput="sync()">
                             <input type="text" id="ui-op-rank" placeholder="ตำแหน่ง" oninput="sync()">
                         </div>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <label>ผู้ควบคุม</label>
+                        <label class="required">ผู้ควบคุม</label>
                         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
                             <input type="text" id="ui-sv-name" placeholder="ชื่อ-นามสกุล" oninput="sync()">
                             <input type="text" id="ui-sv-rank" placeholder="ตำแหน่ง" oninput="sync()">
@@ -631,6 +817,54 @@
                         </thead>
                         <tbody id="dash-table-body"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IPC Detail Modal -->
+    <div id="ipc-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeIpcModal()" style="color: white; z-index: 1001; right: 30px; top: 15px;">&times;</span>
+            <div class="ipc-layout">
+                <div class="ipc-sidebar">
+                    <h3 style="margin-top: 0;">📚 รายการไฟล์ IPC</h3>
+                    <div id="ipc-file-list">
+                        <!-- Files will be listed here -->
+                    </div>
+                </div>
+                <div class="ipc-viewer-container">
+                    <div class="ipc-toolbar">
+                        <div style="display: flex; align-items: center; gap: 15px; flex: 1;">
+                            <button id="ipc-menu-btn" onclick="toggleIpcSidebar()" class="btn-primary" style="padding: 8px; display: none; align-items: center; justify-content: center;">📂</button>
+                            <span id="current-filename" style="font-weight: bold; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;">กรุณาเลือกไฟล์...</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center;">
+                            <button onclick="zoomOut()" class="btn-primary" style="padding: 5px 12px; font-weight: bold;">-</button>
+                            <span id="zoom-display" style="min-width: 50px; text-align: center; font-family: monospace; font-weight: bold;">100%</span>
+                            <button onclick="zoomIn()" class="btn-primary" style="padding: 5px 12px; font-weight: bold;">+</button>
+                        </div>
+                        <div style="flex: 1; display: flex; justify-content: flex-end;">
+                            <!-- Right side placeholder -->
+                        </div>
+                    </div>
+                    <div id="pdf-canvas-container">
+                        <!-- Pages will be rendered here for scrolling -->
+                    </div>
+                </div>
+                <div class="ipc-parts-sidebar">
+                    <h3 style="margin-top: 0; display: flex; align-items: center; justify-content: space-between;">
+                        🛠️ อะไหล่ในหน้านี้
+                        <button onclick="extractPartsFromPage()" class="btn-primary" style="padding: 4px 8px; font-size: 11px; background: #10b981;">🔄 ดึงข้อมูลใหม่</button>
+                    </h3>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <input type="text" id="ipc-parts-search" placeholder="🔍 กรองรายการในหน้านี้..." oninput="filterExtractedParts()" style="font-size: 13px; height: 32px;">
+                    </div>
+                    <div id="extracted-parts-list" style="flex-grow: 1; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--secondary); margin-top: 20px; font-size: 13px;">
+                            กรุณาเลือกไฟล์และหน้า PDF <br>เพื่อดึงข้อมูลอะไหล่อัตโนมัติ
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -851,10 +1085,10 @@
                 div.className = 'item-row';
                 div.id = `row-${itemCount}`;
                 div.innerHTML = `
-                    <div><label>ชื่อรายการ</label><input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()" value="${item.Item || ''}"></div>
-                    <div><label>P/N</label><input type="text" class="i-pn" placeholder="P/N" oninput="sync()" value="${item.PN || ''}"></div>
+                    <div><label class="required">ชื่อรายการ</label><input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()" value="${item.Item || ''}"></div>
+                    <div><label class="required">P/N</label><input type="text" class="i-pn" placeholder="P/N" oninput="sync()" value="${item.PN || ''}"></div>
                     <div><label>S/N</label><input type="text" class="i-sn" placeholder="S/N" oninput="sync()" value="${item.SN || ''}"></div>
-                    <div><label>จำนวน</label><input type="number" class="i-qty" value="${item.Qty || 1}" oninput="sync()"></div>
+                    <div><label class="required">จำนวน</label><input type="number" class="i-qty" value="${item.Qty || 1}" oninput="sync()"></div>
                     <div><label>หมายเหตุ</label><input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()" value="${item.Note || ''}"></div>
                     <button onclick="removeItem(${itemCount})" style="background:#fee2e2; color:#ef4444; padding:8px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">🗑️</button>
                 `;
@@ -927,10 +1161,10 @@
             div.className = 'item-row';
             div.id = `row-${itemCount}`;
             div.innerHTML = `
-                <div><label>ชื่อรายการ</label><input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()"></div>
-                <div><label>P/N</label><input type="text" class="i-pn" placeholder="P/N" oninput="sync()"></div>
+                <div><label class="required">ชื่อรายการ</label><input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()"></div>
+                <div><label class="required">P/N</label><input type="text" class="i-pn" placeholder="P/N" oninput="sync()"></div>
                 <div><label>S/N</label><input type="text" class="i-sn" placeholder="S/N" oninput="sync()"></div>
-                <div><label>จำนวน</label><input type="number" class="i-qty" value="1" oninput="sync()"></div>
+                <div><label class="required">จำนวน</label><input type="number" class="i-qty" value="1" oninput="sync()"></div>
                 <div><label>หมายเหตุ</label><input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()"></div>
                 <button onclick="removeItem(${itemCount})" style="background:#fee2e2; color:#ef4444; padding:8px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">🗑️</button>
             `;
@@ -992,40 +1226,113 @@
             const url = document.getElementById('script-url').value;
             if(!url) return showToast("กรุณาวาง Apps Script URL ก่อนครับ");
 
+            // 1. ตรวจสอบข้อมูลพื้นฐาน (ยกเว้น อ้างถึง)
+            const fields = [
+                { id: 'ui-location', label: 'สถานที่' },
+                { id: 'ui-date', label: 'วันที่' },
+                { id: 'ui-ac-type', label: 'แบบอากาศยาน' },
+                { id: 'ui-kaset', label: 'หมายเลขเกษตร' }
+            ];
+
+            for (const field of fields) {
+                const el = document.getElementById(field.id);
+                if (!el.value.trim()) {
+                    el.focus();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return showToast(`⚠️ กรุณากรอก: ${field.label}`);
+                }
+            }
+
+            // 2. ตรวจสอบประเภทการตรวจซ่อม
+            let repairTypeLabel = "";
+            if (document.getElementById('ui-chk-1').checked) repairTypeLabel += "พิเศษ ";
+            if (document.getElementById('ui-chk-2').checked) {
+                const hrs = document.getElementById('ui-hrs').value.trim();
+                const round = document.getElementById('ui-round').value.trim();
+                repairTypeLabel += `ระยะเวลา(${hrs} ชม.บิน ครั้งที่ ${round}) `;
+            }
+            if (document.getElementById('ui-chk-3').checked) repairTypeLabel += "ตามอาการ ";
+            if (document.getElementById('ui-chk-4').checked) {
+                const other = document.getElementById('ui-other-txt').value.trim();
+                repairTypeLabel += `อื่นๆ(${other}) `;
+            }
+
+            if (!repairTypeLabel.trim()) {
+                const chk1 = document.getElementById('ui-chk-1');
+                chk1.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return showToast("⚠️ กรุณาเลือกประเภทการตรวจซ่อมอย่างน้อย 1 อย่าง");
+            }
+
+            // 3. ตรวจสอบรายการวัสดุ (ยกเว้น S/N และ หมายเหตุ)
+            const itemRows = document.querySelectorAll('.item-row');
+            if (itemRows.length === 0) {
+                document.getElementById('ui-items-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return showToast("⚠️ กรุณาเพิ่มรายการวัสดุอย่างน้อย 1 รายการ");
+            }
+
+            const items = [];
+            for (const row of Array.from(itemRows)) {
+                const nameEl = row.querySelector('.i-name');
+                const pnEl = row.querySelector('.i-pn');
+                const qtyEl = row.querySelector('.i-qty');
+                const sn = row.querySelector('.i-sn').value.trim();
+                const note = row.querySelector('.i-note').value.trim();
+
+                if (!nameEl.value.trim()) {
+                    nameEl.focus();
+                    nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return showToast("⚠️ กรุณากรอกชื่อรายการวัสดุ");
+                }
+                if (!pnEl.value.trim()) {
+                    pnEl.focus();
+                    pnEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return showToast("⚠️ กรุณากรอก P/N");
+                }
+                if (!qtyEl.value.trim()) {
+                    qtyEl.focus();
+                    qtyEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return showToast("⚠️ กรุณากรอกจำนวน");
+                }
+
+                items.push({ name: nameEl.value.trim(), pn: pnEl.value.trim(), sn, qty: qtyEl.value.trim(), note });
+            }
+
+            // 4. ตรวจสอบผู้ปฏิบัติและผู้ควบคุม
+            const sigFields = [
+                { id: 'ui-op-name', label: 'ชื่อผู้ปฏิบัติ' },
+                { id: 'ui-op-rank', label: 'ตำแหน่งผู้ปฏิบัติ' },
+                { id: 'ui-sv-name', label: 'ชื่อผู้ควบคุม' },
+                { id: 'ui-sv-rank', label: 'ตำแหน่งผู้ควบคุม' }
+            ];
+
+            for (const field of sigFields) {
+                const el = document.getElementById(field.id);
+                if (!el.value.trim()) {
+                    el.focus();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return showToast(`⚠️ กรุณากรอก: ${field.label}`);
+                }
+            }
+
             toggleLoading(true, "กำลังบันทึกข้อมูล...");
 
             const timestamp = new Date();
             const transactionId = editingTxId || ("TX-" + timestamp.getTime());
 
-            // สรุปประเภทการซ่อมพร้อมรายละเอียด
-            let repairTypeLabel = "";
-            if (document.getElementById('ui-chk-1').checked) repairTypeLabel += "พิเศษ ";
-            if (document.getElementById('ui-chk-2').checked) {
-                repairTypeLabel += "ระยะเวลา(" + document.getElementById('ui-hrs').value + " ชม.บิน ครั้งที่ " + document.getElementById('ui-round').value + ") ";
-            }
-            if (document.getElementById('ui-chk-3').checked) repairTypeLabel += "ตามอาการ ";
-            if (document.getElementById('ui-chk-4').checked) repairTypeLabel += "อื่นๆ(" + document.getElementById('ui-other-txt').value + ") ";
-
             const data = {
                 transactionId: transactionId,
-                location: document.getElementById('ui-location').value,
-                date: document.getElementById('ui-date').value,
-                aircraft: document.getElementById('ui-ac-type').value,
-                kasetNo: document.getElementById('ui-kaset').value,
-                ref: document.getElementById('ui-ref').value,
+                location: location,
+                date: date,
+                aircraft: acType,
+                kasetNo: kaset,
+                ref: document.getElementById('ui-ref').value.trim(),
                 repairType: repairTypeLabel.trim(),
-                opName: document.getElementById('ui-op-name').value,
-                opRank: document.getElementById('ui-op-rank').value,
-                svName: document.getElementById('ui-sv-name').value,
-                svRank: document.getElementById('ui-sv-rank').value,
-                note: document.getElementById('ui-note').value,
-                items: Array.from(document.querySelectorAll('.item-row')).map(row => ({
-                    name: row.querySelector('.i-name').value,
-                    pn: row.querySelector('.i-pn').value,
-                    sn: row.querySelector('.i-sn').value,
-                    qty: row.querySelector('.i-qty').value,
-                    note: row.querySelector('.i-note').value
-                }))
+                opName: opName,
+                opRank: opRank,
+                svName: svName,
+                svRank: svRank,
+                note: document.getElementById('ui-note').value.trim(),
+                items: items
             };
 
             try {
@@ -1043,8 +1350,14 @@
                 printBtn.style.opacity = "1";
                 printBtn.style.cursor = "pointer";
                 
-                showToast("บันทึกข้อมูลสำเร็จ! คุณสามารถพิมพ์เอกสารได้แล้วครับ");
+                showToast("บันทึกข้อมูลสำเร็จ! กำลังนำคุณไปยังหน้าสรุปข้อมูล...");
                 editingTxId = null; // Clear edit mode after save
+                
+                // Switch to Dashboard after a short delay to allow the user to see the toast
+                setTimeout(() => {
+                    showView('dashboard');
+                    resetForm(); // Optional: reset form for next use
+                }, 1500);
             } catch (error) {
                 console.error(error);
                 showToast("เกิดข้อผิดพลาดในการบันทึก");
@@ -1063,23 +1376,23 @@
                 const res = await fetch(url);
                 const rawData = await res.json();
                 allData = rawData.map(d => ({
-                    Aircraft: d["แบบอากาศยาน"] || d.Aircraft || d.Aircraft,
-                    Item: d["รายการอะไหล่"] || d.Item,
-                    PN: d["P/N"] || d.PN,
-                    SN: d["S/N"] || d.SN,
-                    Qty: d["จำนวน"] || d.Qty,
-                    Date: d["วันที่"] || d.Date,
-                    KasetNo: d["หมายเลขเกษตร"] || d.KasetNo,
-                    TransactionID: d["TransactionID"],
-                    Location: d["สถานที่"] || d.Location,
-                    Ref: d["อ้างถึง"] || d.Ref,
-                    RepairType: d["ประเภทการตรวจซ่อม"] || d.RepairType,
-                    Operator: d["ผู้ปฏิบัติ"] || d.Operator,
-                    OpRank: d["ตำแหน่ง(ผู้ปฏิบัติ)"] || d.OpRank,
-                    Supervisor: d["ผู้ควบคุม"] || d.Supervisor,
-                    SvRank: d["ตำแหน่ง(ผู้ควบคุม)"] || d.SvRank,
-                    Note: d["หมายเหตุ"] || d.Note,
-                    Timestamp: d["Timestamp"]
+                    Aircraft: d["แบบอากาศยาน"] || d.Aircraft || "",
+                    Item: d["รายการอะไหล่"] || d.Item || "",
+                    PN: d["P/N"] || d.PN || "",
+                    SN: d["S/N"] || d.SN || "",
+                    Qty: d["จำนวน"] || d.Qty || 0,
+                    Date: d["วันที่"] || d.Date || "",
+                    KasetNo: d["หมายเลขเกษตร"] || d.KasetNo || "",
+                    TransactionID: d["TransactionID"] || "",
+                    Location: d["สถานที่"] || d.Location || "",
+                    Ref: d["อ้างถึง"] || d.Ref || "",
+                    RepairType: d["ประเภทการตรวจซ่อม"] || d.RepairType || "",
+                    Operator: d["ผู้ปฏิบัติ"] || d.Operator || "",
+                    OpRank: d["ตำแหน่ง(ผู้ปฏิบัติ)"] || d.OpRank || "",
+                    Supervisor: d["ผู้ควบคุม"] || d.Supervisor || "",
+                    SvRank: d["ตำแหน่ง(ผู้ควบคุม)"] || d.SvRank || "",
+                    Note: d["หมายเหตุ"] || d.Note || "",
+                    Timestamp: d["Timestamp"] || ""
                 }));
                 
                 // Populate aircraft filter
@@ -1209,23 +1522,26 @@
             
             const partSummary = {};
             filtered.forEach(d => {
-                const key = `${d.Item}|${d.PN}|${d.SN}`;
+                const pName = d.Item || "ไม่ระบุชื่อ";
+                const pPN = d.PN || "";
+                const pSN = d.SN || "";
+                const key = `${pName}|${pPN}|${pSN}`;
                 if (!partSummary[key]) {
                     partSummary[key] = {
-                        name: d.Item,
-                        pn: d.PN,
-                        sn: d.SN,
+                        name: pName,
+                        pn: pPN,
+                        sn: pSN,
                         totalQty: 0
                     };
                 }
-                partSummary[key].totalQty += parseInt(d.Qty || 0);
+                partSummary[key].totalQty += parseInt(d.Qty || 0) || 0;
             });
 
             Object.values(partSummary)
-                .sort((a,b) => a.name.localeCompare(b.name))
+                .sort((a,b) => (a.name || "").localeCompare(b.name || ""))
                 .forEach(p => {
                     tbody.innerHTML += `
-                        <tr class="clickable-row" onclick="showPartDetails('${p.name}', '${p.pn || ''}', '${p.sn || ''}')">
+                        <tr class="clickable-row" onclick="showPartDetails('${p.name}', '${p.pn}', '${p.sn}')">
                             <td style="font-weight:600; color:var(--primary)">${p.name}</td>
                             <td style="font-family:monospace; font-size:10px">${p.pn || '-'}</td>
                             <td style="font-family:monospace; font-size:10px">${p.sn || '-'}</td>
@@ -1513,6 +1829,475 @@
 
             // Trigger Print
             window.print();
+        }
+
+        // --- IPC PDF LOGIC ---
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        
+        function getSmartLineText(clickedSpan) {
+            const spans = Array.from(document.querySelectorAll('.text-layer > span'));
+            const rect = clickedSpan.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            // Find all spans on the same "line" (+/- 5px)
+            const lineSpans = spans.filter(s => {
+                const r = s.getBoundingClientRect();
+                const m = r.top + r.height / 2;
+                return Math.abs(m - midY) < 5;
+            });
+            
+            // Sort by left position
+            lineSpans.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+            
+            return lineSpans.map(s => s.textContent).join(' ').replace(/\s+/g, ' ').trim();
+        }
+
+        let currentExtractedParts = [];
+
+        async function extractPartsFromPage() {
+            if (!pdfDoc) return;
+            const list = document.getElementById('extracted-parts-list');
+            list.innerHTML = '<div style="text-align:center; padding:20px;">กำลังวิเคราะห์ข้อมูล...</div>';
+            
+            try {
+                const page = await pdfDoc.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const items = textContent.items;
+                const viewport = page.getViewport({ scale: 1.0 });
+                const pageHeight = viewport.height;
+                
+                let pnColX = -1;
+                let descColX = -1;
+                let figColX = -1;
+                let headerY = -1;
+                let footerY = 0;
+
+                const pnHeaderRegex = /PART\s*NUMBER|PARTNO|P\/N/i;
+                const descHeaderRegex = /DESCRIPTION|NOMENCLATURE|ITEM\s*NAME/i;
+                const figHeaderRegex = /FIG|ITEM|INDEX/i;
+                const footerRegex = /PAGE|IPC|REV|DATE|[\d]{1,2}\/[\d]{1,2}\/[\d]{2,4}/i;
+
+                // 1. Enhanced Header & Footer Detection
+                // Group items by Y to analyze full lines for headers
+                const lineGroups = {};
+                items.forEach(item => {
+                    const y = Math.round(item.transform[5]);
+                    if (!lineGroups[y]) lineGroups[y] = [];
+                    lineGroups[y].push(item);
+                });
+
+                const sortedY = Object.keys(lineGroups).map(Number).sort((a,b) => b - a);
+
+                for (const y of sortedY) {
+                    const lineItems = lineGroups[y].sort((a,b) => a.transform[4] - b.transform[4]);
+                    const lineText = lineItems.map(it => it.str).join(" ").toUpperCase();
+                    
+                    // Look for Header Row
+                    if (headerY === -1 && (lineText.includes("PART NUMBER") || lineText.includes("PART NO") || lineText.includes("DESCRIPTION"))) {
+                        headerY = y;
+                        lineItems.forEach(it => {
+                            const txt = it.str.trim().toUpperCase();
+                            if (txt.includes("PART") || txt.includes("P/N") || txt.includes("NO.")) pnColX = it.transform[4];
+                            if (txt.includes("DESC") || txt.includes("NOMEN")) descColX = it.transform[4];
+                        });
+                    }
+
+                    // Look for Footer
+                    if (y < pageHeight * 0.15 && (footerRegex.test(lineText) || lineText.includes("PAGE"))) {
+                        if (y + 10 > footerY) footerY = y + 10;
+                    }
+                }
+
+                // Fallback if still not found
+                if (pnColX === -1) pnColX = 150;
+                if (descColX === -1) descColX = 350;
+                if (headerY === -1) headerY = pageHeight * 0.85;
+
+                // 2. Filter items: ONLY below Header and above Footer
+                const rowsData = [];
+                const yBuffer = 10; // Increased buffer for better row detection
+                
+                const validItems = items.filter(it => it.transform[5] < headerY - 5 && it.transform[5] > footerY);
+                validItems.sort((a,b) => b.transform[5] - a.transform[5]);
+
+                validItems.forEach(item => {
+                    const y = item.transform[5];
+                    let row = rowsData.find(r => Math.abs(r.y - y) < yBuffer);
+                    if (!row) {
+                        row = { y: y, items: [] };
+                        rowsData.push(row);
+                    }
+                    row.items.push(item);
+                });
+
+                // Sort rows by Y coordinate descending (top to bottom)
+                rowsData.sort((a, b) => b.y - a.y);
+
+                // 3. Extract and Merge based on Header Positions
+                currentExtractedParts = [];
+                let lastEntry = null;
+                let lastY = -1;
+
+                rowsData.forEach(row => {
+                    let pnParts = [];
+                    let descParts = [];
+                    
+                    row.items.sort((a,b) => a.transform[4] - b.transform[4]);
+                    
+                    row.items.forEach(item => {
+                        const x = item.transform[4];
+                        const text = item.str.trim();
+                        if (!text || text.length < 1) return;
+
+                        // Identify column based on X coordinate
+                        // Part Number usually on the left (closer to pnColX)
+                        if (Math.abs(x - pnColX) < 100) {
+                            if (!text.includes("FIG") && !text.includes("ITEM")) {
+                                pnParts.push(text);
+                            }
+                        } 
+                        // Description usually on the right
+                        else if (x > descColX - 80) {
+                            descParts.push(text);
+                        }
+                    });
+
+                    const pnText = pnParts.join('').trim(); // Merge split PN like "123-" "456"
+                    const verticalGap = (lastY !== -1) ? (lastY - row.y) : 0;
+                    
+                    if (pnText && pnText.length >= 2) {
+                        // Priority: New PN always starts a new entry
+                        lastEntry = {
+                            pn: pnText,
+                            name: descParts.join(' ').trim()
+                        };
+                        currentExtractedParts.push(lastEntry);
+                        lastY = row.y;
+                    } else if (lastEntry && descParts.length > 0 && verticalGap < 35) {
+                        // No PN found, but description exists - merge with previous
+                        lastEntry.name += (lastEntry.name ? " " : "") + descParts.join(' ');
+                        lastY = row.y;
+                    }
+                });
+
+                // Final Clean
+                currentExtractedParts = currentExtractedParts.filter(p => p.pn && p.pn.length > 2);
+
+                // Filter out empty results
+                currentExtractedParts = currentExtractedParts.filter(p => p.pn || p.name);
+
+                // Clean up extra spaces
+                currentExtractedParts = currentExtractedParts.map(p => ({
+                    pn: p.pn,
+                    name: (p.name || "Item (" + p.pn + ")").replace(/\s+/g, ' ').trim()
+                }));
+                
+                renderExtractedParts(currentExtractedParts);
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = '<div style="text-align:center; color:red; padding:20px;">เกิดข้อผิดพลาดในการวิเคราะห์</div>';
+            }
+        }
+
+        function renderExtractedParts(parts) {
+            const list = document.getElementById('extracted-parts-list');
+            list.innerHTML = '';
+            
+            if (parts.length === 0) {
+                list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--secondary);">ไม่พบข้อมูลอะไหล่ที่ชัดเจนในหน้านี้</div>';
+                return;
+            }
+
+            parts.forEach(part => {
+                const div = document.createElement('div');
+                div.className = 'part-extract-item';
+                div.onclick = () => {
+                    addItem();
+                    const lastRow = document.querySelector('.item-row:last-child');
+                    if (lastRow) {
+                        lastRow.querySelector('.i-name').value = part.name;
+                        lastRow.querySelector('.i-pn').value = part.pn;
+                    }
+                    sync();
+                    showToast("เพิ่ม " + part.pn + " เข้าในฟอร์มแล้ว");
+                };
+                div.innerHTML = `
+                    <span class="part-extract-pn">${part.pn}</span>
+                    <span class="part-extract-name">${part.name}</span>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function filterExtractedParts() {
+            const query = document.getElementById('ipc-parts-search').value.toLowerCase();
+            const filtered = currentExtractedParts.filter(p => 
+                p.pn.toLowerCase().includes(query) || 
+                p.name.toLowerCase().includes(query)
+            );
+            renderExtractedParts(filtered);
+        }
+
+        let interactionMode = 'text'; // 'text' or 'ocr'
+        let isDrawing = false;
+        let hasMoved = false;
+        let startX, startY;
+
+        function setMode(mode) {
+            interactionMode = mode;
+        }
+
+        let pdfDoc = null;
+        let scale = 1.5;
+
+        let ipcFiles = {}; // Load from API
+
+        function openIpcModal() {
+            document.getElementById('ipc-modal').style.display = 'block';
+            fetchIpcFiles();
+        }
+
+        function closeIpcModal() {
+            document.getElementById('ipc-modal').style.display = 'none';
+        }
+
+        async function fetchIpcFiles() {
+            const list = document.getElementById('ipc-file-list');
+            list.innerHTML = '<div style="padding:20px; text-align:center;">กำลังเชื่อมต่อ Google Drive...</div>';
+            
+            const scriptUrl = document.getElementById('script-url').value;
+            if(!scriptUrl) {
+                list.innerHTML = '<div style="padding:20px; text-align:center; color:#ef4444;">กรุณาใส่ Apps Script URL ในหน้าหลักก่อนครับ</div>';
+                return;
+            }
+
+            try {
+                // Ensure the URL is correct and doesn't have double slashes
+                const fullUrl = `${scriptUrl}${scriptUrl.includes('?') ? '&' : '?'}action=getIpc`;
+                
+                const response = await fetch(fullUrl, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                if(data.error) throw new Error(data.error);
+                ipcFiles = data;
+                renderFileList();
+            } catch (error) {
+                console.error("Error fetching IPC files:", error);
+                list.innerHTML = `<div style="padding:20px; text-align:center; color:#ef4444;">
+                    ไม่สามารถโหลดข้อมูลจาก Google Drive ได้<br>
+                    <small>สาเหตุ: ${error.message}</small><br><br>
+                    <button class="btn-primary" onclick="window.open('${scriptUrl}?action=getIpc', '_blank')" style="font-size:12px; padding:5px 10px;">
+                        ลองเปิดลิงก์ตรวจสอบโดยตรง
+                    </button>
+                </div>`;
+            }
+        }
+
+        function renderFileList() {
+            const list = document.getElementById('ipc-file-list');
+            list.innerHTML = '';
+            
+            if (!ipcFiles || !ipcFiles.children || ipcFiles.children.length === 0) {
+                list.innerHTML = '<div style="padding:20px; text-align:center; color:var(--secondary);">ไม่พบไฟล์ใน Google Drive Folder</div>';
+                return;
+            }
+
+            function createNodeUI(node, level = 0) {
+                const container = document.createElement('div');
+                container.style.marginLeft = level > 0 ? '15px' : '0';
+                
+                if (node.type === 'folder') {
+                    const section = document.createElement('div');
+                    section.style.marginBottom = '2px';
+
+                    const header = document.createElement('div');
+                    header.style.padding = '10px 15px';
+                    header.style.background = level === 0 ? '#1e293b' : '#334155';
+                    header.style.color = 'white';
+                    header.style.fontWeight = 'bold';
+                    header.style.fontSize = level === 0 ? '14px' : '13px';
+                    header.style.cursor = 'pointer';
+                    header.style.display = 'flex';
+                    header.style.justifyContent = 'space-between';
+                    header.style.alignItems = 'center';
+                    header.style.borderRadius = '4px';
+                    header.style.marginTop = '2px';
+                    header.innerHTML = `<span>📂 ${node.name}</span> <span class="arrow">▶</span>`;
+                    
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.style.display = 'none';
+                    childrenContainer.style.borderLeft = '1px solid #cbd5e1';
+                    childrenContainer.style.marginTop = '2px';
+
+                    header.onclick = () => {
+                        const isHidden = childrenContainer.style.display === 'none';
+                        childrenContainer.style.display = isHidden ? 'block' : 'none';
+                        header.querySelector('.arrow').textContent = isHidden ? '▼' : '▶';
+                        if (level === 0) header.style.background = isHidden ? '#2563eb' : '#1e293b';
+                    };
+
+                    node.children.forEach(child => {
+                        childrenContainer.appendChild(createNodeUI(child, level + 1));
+                    });
+
+                    section.appendChild(header);
+                    section.appendChild(childrenContainer);
+                    container.appendChild(section);
+                } else {
+                    const div = document.createElement('div');
+                    div.className = 'ipc-file-item';
+                    div.style.padding = '6px 12px';
+                    div.style.fontSize = '12px';
+                    div.style.borderBottom = '1px solid #f1f5f9';
+                    div.innerHTML = `📄 ${node.name}`;
+                    div.onclick = (e) => {
+                        e.stopPropagation();
+                        // Always try to load in PDF viewer (Word files will be converted by GAS)
+                        loadDrivePDF(node.id, node.name, div);
+                    };
+                    container.appendChild(div);
+                }
+                return container;
+            }
+
+            // Render all top-level children
+            ipcFiles.children.forEach(child => {
+                list.appendChild(createNodeUI(child, 0));
+            });
+        }
+
+        function toggleIpcSidebar() {
+            document.querySelector('.ipc-sidebar').classList.toggle('active');
+        }
+
+        async function loadDrivePDF(fileId, filename, element) {
+            const scriptUrl = document.getElementById('script-url').value;
+            if(!scriptUrl) return showToast("ไม่พบ Apps Script URL");
+
+            document.querySelector('.ipc-sidebar').classList.remove('active');
+            document.querySelectorAll('.ipc-file-item').forEach(el => el.classList.remove('active'));
+            if(element) element.classList.add('active');
+            document.getElementById('current-filename').textContent = filename;
+
+            toggleLoading(true, "กำลังดึงข้อมูลไฟล์จาก Drive...");
+            try {
+                const proxyUrl = `${scriptUrl}${scriptUrl.includes('?') ? '&' : '?'}action=getFileData&id=${fileId}`;
+                const response = await fetch(proxyUrl, { redirect: 'follow' });
+                const json = await response.json();
+                
+                if (json.error === "FILE_TOO_LARGE" || json.error === "NEED_CONVERSION") {
+                    showToast(json.message);
+                    if (confirm(`${json.message}\n\nต้องการเปิดไฟล์ใน Google Drive เพื่อแปลงไฟล์หรือไม่?`)) {
+                        window.open(json.driveUrl, '_blank');
+                    }
+                    return;
+                }
+                
+                if (json.error) throw new Error(json.error);
+
+                // Convert base64 to Uint8Array for PDF.js
+                const binaryString = window.atob(json.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                await loadPDFData(bytes);
+            } catch (error) {
+                console.error(error);
+                showToast("ไม่สามารถโหลด PDF: " + error.message);
+                if (confirm(`${error.message}\n\nต้องการเปิดไฟล์ใน Google Drive แทนหรือไม่?`)) {
+                    window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+                }
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function loadPDFData(data) {
+            try {
+                const loadingTask = pdfjsLib.getDocument({ data: data });
+                pdfDoc = await loadingTask.promise;
+                renderAllPages();
+            } catch (error) {
+                console.error(error);
+                showToast("Error rendering PDF data");
+            }
+        }
+
+        async function loadPDF(url, filename, element) {
+            // Close sidebar on mobile after selection
+            document.querySelector('.ipc-sidebar').classList.remove('active');
+            
+            // Update UI
+            document.querySelectorAll('.ipc-file-item').forEach(el => el.classList.remove('active'));
+            if(element) element.classList.add('active');
+            document.getElementById('current-filename').textContent = filename;
+            
+            toggleLoading(true, "กำลังโหลดไฟล์ PDF...");
+            try {
+                const loadingTask = pdfjsLib.getDocument(url);
+                pdfDoc = await loadingTask.promise;
+                renderAllPages();
+            } catch (error) {
+                console.error(error);
+                showToast("ไม่สามารถโหลดไฟล์ PDF ได้");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function renderAllPages() {
+            if (!pdfDoc) return;
+            const container = document.getElementById('pdf-canvas-container');
+            container.innerHTML = '<div style="color:white; padding:20px;">กำลังโหลดหน้าทั้งหมด...</div>';
+            
+            const numPages = pdfDoc.numPages;
+            container.innerHTML = ''; // Clear loading text
+
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: scale });
+
+                const pageWrapper = document.createElement('div');
+                pageWrapper.className = 'pdf-page-wrapper';
+                pageWrapper.style.position = 'relative';
+                pageWrapper.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+                pageWrapper.style.background = 'white';
+                pageWrapper.style.marginBottom = '20px';
+                
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                pageWrapper.appendChild(canvas);
+                container.appendChild(pageWrapper);
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+            }
+        }
+
+        function zoomIn() {
+            scale += 0.25;
+            document.getElementById('zoom-display').textContent = Math.round(scale * 100) + '%';
+            renderAllPages();
+        }
+
+        function zoomOut() {
+            if (scale <= 0.5) return;
+            scale -= 0.25;
+            document.getElementById('zoom-display').textContent = Math.round(scale * 100) + '%';
+            renderAllPages();
         }
 
         document.getElementById('ui-date').value = new Date().toISOString().split('T')[0];

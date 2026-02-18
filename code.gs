@@ -134,21 +134,137 @@ function doPost(e) {
   }
 }
 
-function doGet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Data");
-  if (!sheet) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+function doGet(e) {
+  var action = e && e.parameter ? e.parameter.action : null;
   
-  var data = sheet.getDataRange().getValues();
-  var headers = data.shift();
-  var json = data.map(function(row) {
-    var obj = {};
-    headers.forEach(function(h, i) {
-      obj[h] = row[i];
+  if (action === "getIpc") {
+    var folderId = "1oXp3Ss5puxcmgCyVEkv6pBUYtom-dOrx";
+    try {
+      var rootFolder = DriveApp.getFolderById(folderId);
+      var content = getFolderContents(rootFolder);
+      return ContentService.createTextOutput(JSON.stringify(content))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({error: "Drive Error: " + err.toString()}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  if (action === "getFileData") {
+    var fileId = e.parameter.id;
+    try {
+      var file = DriveApp.getFileById(fileId);
+      var mime = file.getMimeType();
+      var fileSize = file.getSize();
+      
+      // Limit to 30MB for Base64 proxy to avoid GAS limits
+      if (fileSize > 30 * 1024 * 1024) {
+        return ContentService.createTextOutput(JSON.stringify({
+          error: "FILE_TOO_LARGE",
+          message: "ไฟล์มีขนาดใหญ่เกินไปสำหรับการแสดงผลในหน้าเว็บ (" + (fileSize / (1024*1024)).toFixed(1) + " MB)",
+          driveUrl: file.getUrl()
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Convert Word and Google Docs to PDF on-the-fly
+      if (mime === "application/msword" || 
+          mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+          mime === "application/vnd.google-apps.document") {
+        try {
+          blob = file.getAs('application/pdf');
+        } catch (e) {
+          // If direct conversion fails (common for old .doc), we let the user know and provide a fix
+          if (mime === "application/msword") {
+            return ContentService.createTextOutput(JSON.stringify({
+              error: "NEED_CONVERSION",
+              message: "ไฟล์ .doc (รุ่นเก่า) ไม่รองรับการแสดงผลโดยตรง กรุณาบันทึกเป็น Google Docs หรือ .docx บน Google Drive ก่อน",
+              driveUrl: file.getUrl()
+            })).setMimeType(ContentService.MimeType.JSON);
+          } else {
+            throw e;
+          }
+        }
+      } else {
+        blob = file.getBlob();
+      }
+      
+      var base64 = Utilities.base64Encode(blob.getBytes());
+      return ContentService.createTextOutput(JSON.stringify({
+        data: base64,
+        mimeType: blob.getContentType(),
+        name: file.getName().replace(/\.(docx|doc|pdf)$/i, '') + ".pdf"
+      })).setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({error: err.toString()}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Data");
+    if (!sheet) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+    
+    var data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+    
+    var headers = data.shift();
+    var json = data.map(function(row) {
+      var obj = {};
+      headers.forEach(function(h, i) {
+        obj[h] = row[i];
+      });
+      return obj;
     });
-    return obj;
-  });
+    
+    return ContentService.createTextOutput(JSON.stringify(json))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({error: "Sheet Error: " + err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getFolderContents(folder) {
+  var folderName = folder.getName();
+  var result = {
+    name: folderName,
+    type: "folder",
+    children: []
+  };
   
-  return ContentService.createTextOutput(JSON.stringify(json))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    var subfolders = folder.getFolders();
+    while (subfolders.hasNext()) {
+      var subfolder = subfolders.next();
+      result.children.push(getFolderContents(subfolder));
+    }
+    
+    var files = folder.getFiles();
+    while (files.hasNext()) {
+      var file = files.next();
+      var fileName = file.getName();
+      var mime = file.getMimeType();
+      
+      // Support PDF, Word, and Google Docs
+      var isPdf = mime === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+      var isWord = mime.includes("word") || 
+                   mime.includes("vnd.google-apps.document") || 
+                   fileName.toLowerCase().endsWith(".doc") || 
+                   fileName.toLowerCase().endsWith(".docx");
+      
+      if (isPdf || isWord) {
+        result.children.push({
+          name: fileName,
+          type: "file",
+          id: file.getId(),
+          isWord: isWord
+        });
+      }
+    }
+  } catch (e) {
+    Logger.log("Error reading folder " + folderName + ": " + e.toString());
+  }
+  
+  return result;
 }
