@@ -232,12 +232,145 @@
             .no-print-ui, .nav, .container, .modal, .view { display: none !important; }
             #print-area { display: block !important; }
         }
+
+        /* Mobile Adjustments */
+        @media screen and (max-width: 768px) {
+            body { font-size: 14px; }
+            .nav { 
+                gap: 10px; 
+                padding: 0 10px; 
+                overflow-x: auto; 
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+            .nav-item { padding: 12px 8px; font-size: 14px; }
+            .container { padding: 12px; }
+            .card { padding: 16px; margin-bottom: 16px; }
+            
+            .grid { grid-template-columns: 1fr; gap: 12px; }
+            
+            .item-header { display: none !important; }
+            .item-row { 
+                grid-template-columns: 1fr; 
+                gap: 10px; 
+                padding: 15px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: #fcfcfc;
+                margin-bottom: 15px;
+                position: relative;
+            }
+            .item-row label { 
+                display: block; 
+                margin-bottom: 4px;
+                font-size: 12px;
+                color: var(--secondary);
+            }
+            .item-row button {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                width: 32px;
+                height: 32px;
+            }
+            
+            .modal-content {
+                width: 100vw;
+                height: 100vh;
+                margin: 0;
+                border-radius: 0;
+                padding: 16px;
+            }
+            
+            .stat-grid { grid-template-columns: 1fr; }
+            
+            input[type="text"], input[type="number"], input[type="date"], select {
+                font-size: 16px; /* Prevent zoom on iOS */
+            }
+
+            .dash-table th, .dash-table td {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            /* Responsive Table wrapper */
+            .table-responsive {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin-bottom: 1rem;
+            }
+
+            /* Repair Type adjustments */
+            #ui-hrs, #ui-round { width: 60px !important; flex-grow: 1; }
+            #ui-other-txt { width: 100% !important; margin-top: 5px; }
+            
+            /* Signature section */
+            .card .grid div div { grid-template-columns: 1fr !important; }
+            
+            /* Action buttons */
+            .action-buttons { flex-direction: column; }
+            .action-buttons button { width: 100%; }
+        }
+
+        /* Custom Popup/Toast Styles */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 3000;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 14px;
+        }
+        .toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        .modal-small {
+            width: 90%;
+            max-width: 400px;
+            height: auto !important;
+            min-height: auto !important;
+            margin: 25vh auto !important;
+            padding: 24px;
+            border-radius: 12px;
+            box-sizing: border-box;
+        }
+        #password-modal {
+            z-index: 4000; /* Higher than detail-modal (1000) and toast (3000) */
+        }
     </style>
 </head>
 <body>
     <div id="loading" class="loading-overlay">
         <div class="spinner"></div>
         <div id="loading-text">กำลังดำเนินการ...</div>
+    </div>
+
+    <!-- Custom Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Password Modal -->
+    <div id="password-modal" class="modal">
+        <div class="modal-content modal-small">
+            <h3 style="margin-top:0">🔑 ยืนยันรหัสผ่าน</h3>
+            <p style="color:var(--secondary); font-size:14px">กรุณาใส่รหัสผ่านเพื่อลบข้อมูล</p>
+            <input type="password" id="admin-pass-input" placeholder="ใส่รหัสผ่าน..." style="margin-bottom:15px" onkeyup="if(event.key==='Enter') confirmDelete()" autocomplete="new-password">
+            <div style="display:flex; gap:10px">
+                <button class="btn-primary" onclick="confirmDelete()" style="flex:1">ตกลง</button>
+                <button class="btn-secondary" onclick="closePasswordModal()" style="flex:1; background:#64748b; color:white">ยกเลิก</button>
+            </div>
+        </div>
     </div>
 
     <div class="nav no-print-ui">
@@ -346,7 +479,7 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
+            <div class="action-buttons" style="display: flex; gap: 10px;">
                 <button class="btn-success" style="flex: 1; padding: 15px;" onclick="saveToSheets()">💾 บันทึกลง Google Sheets</button>
                 <button class="btn-primary" style="padding: 15px; background: #64748b;" onclick="resetForm()">🔄 ล้างฟอร์ม / เริ่มใหม่</button>
                 <button id="print-btn" class="btn-primary" style="flex: 1; padding: 15px; opacity: 0.5; cursor: not-allowed;" onclick="handlePrint()" disabled>🖨️ พิมพ์เอกสาร (PDF)</button>
@@ -380,11 +513,11 @@
                     </div>
                     <div>
                         <label>ค้นหาหมายเลขเกษตร</label>
-                        <input type="text" id="kaset-search" placeholder="ระบุหมายเลข..." oninput="renderDashboard()">
+                        <input type="text" id="kaset-search" placeholder="ระบุหมายเลข..." oninput="renderDashboard()" autocomplete="off">
                     </div>
                     <div>
                         <label>ค้นหา Transaction ID</label>
-                        <input type="text" id="tx-search" placeholder="ระบุ ID..." oninput="renderDashboard()">
+                        <input type="text" id="tx-search" placeholder="ระบุ ID..." oninput="renderDashboard()" autocomplete="off">
                     </div>
                 </div>
             </div>
@@ -394,7 +527,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin: 0;">📦 สรุปการเบิกรายหมายเลขเกษตร (Kaset No. Summary)</h3>
                 </div>
-                <div style="max-height: 400px; overflow-y: auto;">
+                <div style="max-height: 400px; overflow-y: auto;" class="table-responsive">
                     <table class="dash-table">
                         <thead>
                             <tr>
@@ -424,7 +557,7 @@
                         <button class="btn-primary" onclick="showAllTransactions()" style="height: 38px; display: flex; align-items: center; gap: 5px;">📜 แสดงรายละเอียดทั้งหมด</button>
                     </div>
                 </div>
-                <div style="max-height: 600px; overflow-y: auto;">
+                <div style="max-height: 600px; overflow-y: auto;" class="table-responsive">
                     <table class="dash-table">
                         <thead>
                             <tr>
@@ -487,6 +620,62 @@
     </div>
 
     <script>
+        function showToast(message) {
+            const x = document.getElementById("toast");
+            x.textContent = message;
+            x.className = "toast show";
+            setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+        }
+
+        let deleteTargetId = null;
+        function deleteTransaction(txId) {
+            deleteTargetId = txId;
+            document.getElementById('admin-pass-input').value = '';
+            document.getElementById('password-modal').style.display = 'block';
+            document.getElementById('admin-pass-input').focus();
+        }
+
+        function closePasswordModal() {
+            document.getElementById('password-modal').style.display = 'none';
+            deleteTargetId = null;
+        }
+
+        async function confirmDelete() {
+            const password = document.getElementById('admin-pass-input').value;
+            if (password !== "admin123") {
+                showToast("รหัสผ่านไม่ถูกต้อง");
+                return;
+            }
+
+            const txId = deleteTargetId;
+            closePasswordModal();
+            
+            const url = document.getElementById('script-url').value;
+            toggleLoading(true, "กำลังลบข้อมูล...");
+
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'delete',
+                        transactionId: txId
+                    })
+                });
+                
+                showToast("ลบข้อมูลสำเร็จแล้วครับ");
+                document.getElementById('detail-modal').style.display = 'none';
+                loadDashboardData(); // Refresh dashboard
+            } catch (error) {
+                console.error(error);
+                showToast("เกิดข้อผิดพลาดในการลบข้อมูล");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
         function toggleLoading(show, text = "กำลังดำเนินการ...") {
             const loading = document.getElementById('loading');
             const loadingText = document.getElementById('loading-text');
@@ -600,11 +789,11 @@
                 div.className = 'item-row';
                 div.id = `row-${itemCount}`;
                 div.innerHTML = `
-                    <input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()" value="${item.Item || ''}">
-                    <input type="text" class="i-pn" placeholder="P/N" oninput="sync()" value="${item.PN || ''}">
-                    <input type="text" class="i-sn" placeholder="S/N" oninput="sync()" value="${item.SN || ''}">
-                    <input type="number" class="i-qty" value="${item.Qty || 1}" oninput="sync()">
-                    <input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()" value="${item.Note || ''}">
+                    <div><label>ชื่อรายการ</label><input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()" value="${item.Item || ''}"></div>
+                    <div><label>P/N</label><input type="text" class="i-pn" placeholder="P/N" oninput="sync()" value="${item.PN || ''}"></div>
+                    <div><label>S/N</label><input type="text" class="i-sn" placeholder="S/N" oninput="sync()" value="${item.SN || ''}"></div>
+                    <div><label>จำนวน</label><input type="number" class="i-qty" value="${item.Qty || 1}" oninput="sync()"></div>
+                    <div><label>หมายเหตุ</label><input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()" value="${item.Note || ''}"></div>
                     <button onclick="removeItem(${itemCount})" style="background:#fee2e2; color:#ef4444; padding:8px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">🗑️</button>
                 `;
                 container.appendChild(div);
@@ -612,38 +801,7 @@
 
             sync();
             document.getElementById('detail-modal').style.display = 'none';
-            alert("โหลดข้อมูล Transaction " + txId + " มาเพื่อแก้ไขแล้วครับ");
-        }
-
-        async function deleteTransaction(txId) {
-            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบรายการ ${txId}?\nการกระทำนี้ไม่สามารถย้อนกลับได้`)) {
-                return;
-            }
-
-            const url = document.getElementById('script-url').value;
-            toggleLoading(true, "กำลังลบข้อมูล...");
-
-            try {
-                await fetch(url, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    cache: 'no-cache',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'delete',
-                        transactionId: txId
-                    })
-                });
-                
-                alert("ลบข้อมูลสำเร็จแล้วครับ");
-                document.getElementById('detail-modal').style.display = 'none';
-                loadDashboardData(); // Refresh dashboard
-            } catch (error) {
-                console.error(error);
-                alert("เกิดข้อผิดพลาดในการลบข้อมูล");
-            } finally {
-                toggleLoading(false);
-            }
+            showToast("โหลดข้อมูล " + txId + " สำเร็จ");
         }
 
         function markUnsaved() {
@@ -656,7 +814,7 @@
 
         function handlePrint() {
             if (!isSaved) {
-                alert("กรุณากดบันทึกข้อมูลลง Google Sheets ก่อนพิมพ์เอกสารครับ");
+                showToast("กรุณากดบันทึกข้อมูลลง Google Sheets ก่อนพิมพ์เอกสารครับ");
                 return;
             }
             window.print();
@@ -664,7 +822,7 @@
 
         function exportToExcel() {
             if (allData.length === 0) {
-                alert("ไม่มีข้อมูลที่จะส่งออก");
+                showToast("ไม่มีข้อมูลที่จะส่งออก");
                 return;
             }
 
@@ -707,11 +865,11 @@
             div.className = 'item-row';
             div.id = `row-${itemCount}`;
             div.innerHTML = `
-                <input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()">
-                <input type="text" class="i-pn" placeholder="P/N" oninput="sync()">
-                <input type="text" class="i-sn" placeholder="S/N" oninput="sync()">
-                <input type="number" class="i-qty" value="1" oninput="sync()">
-                <input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()">
+                <div><label>ชื่อรายการ</label><input type="text" class="i-name" placeholder="ชื่อรายการ" oninput="sync()"></div>
+                <div><label>P/N</label><input type="text" class="i-pn" placeholder="P/N" oninput="sync()"></div>
+                <div><label>S/N</label><input type="text" class="i-sn" placeholder="S/N" oninput="sync()"></div>
+                <div><label>จำนวน</label><input type="number" class="i-qty" value="1" oninput="sync()"></div>
+                <div><label>หมายเหตุ</label><input type="text" class="i-note" placeholder="หมายเหตุ" oninput="sync()"></div>
                 <button onclick="removeItem(${itemCount})" style="background:#fee2e2; color:#ef4444; padding:8px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">🗑️</button>
             `;
             container.appendChild(div);
@@ -770,7 +928,7 @@
 
         async function saveToSheets() {
             const url = document.getElementById('script-url').value;
-            if(!url) return alert("กรุณาวาง Apps Script URL ก่อนครับ");
+            if(!url) return showToast("กรุณาวาง Apps Script URL ก่อนครับ");
 
             toggleLoading(true, "กำลังบันทึกข้อมูล...");
 
@@ -823,11 +981,11 @@
                 printBtn.style.opacity = "1";
                 printBtn.style.cursor = "pointer";
                 
-                alert("บันทึกข้อมูลสำเร็จ! คุณสามารถพิมพ์เอกสารได้แล้วครับ");
+                showToast("บันทึกข้อมูลสำเร็จ! คุณสามารถพิมพ์เอกสารได้แล้วครับ");
                 editingTxId = null; // Clear edit mode after save
             } catch (error) {
                 console.error(error);
-                alert("เกิดข้อผิดพลาดในการบันทึก");
+                showToast("เกิดข้อผิดพลาดในการบันทึก");
             } finally {
                 toggleLoading(false);
             }
@@ -877,7 +1035,7 @@
                 renderDashboard();
             } catch (e) { 
                 console.error(e); 
-                alert("ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
+                showToast("ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
             } finally {
                 toggleLoading(false);
             }
@@ -1033,12 +1191,16 @@
                 if(!transactions[txId]) {
                     transactions[txId] = {
                         date: d.Date,
+                        repairType: d.RepairType || '-',
+                        location: d.Location || '-',
                         items: [],
                         people: (d.Operator || '-') + ' / ' + (d.Supervisor || '-')
                     };
                 }
                 const q = parseInt(d.Qty || 0);
-                transactions[txId].items.push(`${d.Item} (${q})`);
+                const pn = d.PN || '-';
+                const sn = d.SN || '-';
+                transactions[txId].items.push(`${d.Item} (P/N: ${pn}, S/N: ${sn}) [${q}]`);
             });
 
             let html = `
@@ -1046,23 +1208,26 @@
                     <span class="badge" style="background:#ecfdf5; color:#065f46;">อากาศยาน: ${data[0]?.Aircraft || '-'}</span>
                     <span class="badge">จำนวนครั้งที่เบิก: ${Object.keys(transactions).length} ครั้ง</span>
                 </div>
-                <table class="dash-table">
-                    <thead>
-                        <tr>
-                            <th style="width:100px">วันที่</th>
-                            <th style="width:120px">Transaction ID</th>
-                            <th>รายการที่เบิก</th>
-                            <th>ผู้ปฏิบัติ / ผู้ควบคุม</th>
-                            <th style="width:100px">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div class="table-responsive">
+                    <table class="dash-table">
+                        <thead>
+                            <tr>
+                                <th style="width:100px">วันที่</th>
+                                <th style="width:120px">Transaction ID</th>
+                                <th style="width:120px">ประเภทการตรวจซ่อม</th>
+                                <th style="width:100px">สถานที่</th>
+                                <th>รายการที่เบิก (P/N, S/N) [จำนวน]</th>
+                                <th>ผู้ปฏิบัติ / ผู้ควบคุม</th>
+                                <th style="width:100px">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             `;
 
             const sortedTx = Object.entries(transactions).sort((a,b) => new Date(b[1].date) - new Date(a[1].date));
             
             if (sortedTx.length === 0) {
-                html += `<tr><td colspan="5" style="text-align:center; padding:20px;">ไม่พบข้อมูล</td></tr>`;
+                html += `<tr><td colspan="7" style="text-align:center; padding:20px;">ไม่พบข้อมูล</td></tr>`;
             } else {
                 sortedTx.forEach(([id, tx]) => {
                     const dStr = tx.date ? new Date(tx.date).toLocaleDateString('th-TH') : '-';
@@ -1070,7 +1235,9 @@
                         <tr>
                             <td>${dStr}</td>
                             <td style="font-family: monospace; font-size: 11px;">${id}</td>
-                            <td style="font-size: 13px; color:#1e293b; line-height:1.4;">${tx.items.join(', ')}</td>
+                            <td style="font-size: 12px;">${tx.repairType}</td>
+                            <td style="font-size: 12px;">${tx.location}</td>
+                            <td style="font-size: 13px; color:#1e293b; line-height:1.4;">${tx.items.join('<br>')}</td>
                             <td>${tx.people}</td>
                             <td>
                                 <button class="btn-primary" style="padding:4px 8px; font-size:10px; margin-bottom:4px; display:block; width: 100%;" onclick="preparePrint('${id}')">🖨️ พิมพ์</button>
@@ -1082,7 +1249,7 @@
                 });
             }
 
-            html += `</tbody></table>`;
+            html += `</tbody></table></div>`;
             body.innerHTML = html;
             modal.style.display = 'block';
         }
@@ -1110,19 +1277,22 @@
                     <span class="badge">ใช้ไปทั้งหมด ${usages.reduce((acc, curr) => acc + parseInt(curr.Qty||0), 0)} ชิ้น</span>
                     <span class="badge" style="background:#fef3c7; color:#92400e;">จำนวนครั้งที่เบิก: ${usages.length}</span>
                 </div>
-                <table class="dash-table">
-                    <thead>
-                        <tr>
-                            <th>วันที่</th>
-                            <th>หมายเลขเกษตร</th>
-                            <th>อากาศยาน</th>
-                            <th>จำนวน</th>
-                            <th>S/N</th>
-                            <th>ผู้ปฏิบัติ</th>
-                            <th>จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div class="table-responsive">
+                    <table class="dash-table">
+                        <thead>
+                            <tr>
+                                <th>วันที่</th>
+                                <th>หมายเลขเกษตร</th>
+                                <th>อากาศยาน</th>
+                                <th>ประเภทการซ่อม</th>
+                                <th>สถานที่</th>
+                                <th>จำนวน</th>
+                                <th>S/N</th>
+                                <th>ผู้ปฏิบัติ</th>
+                                <th>จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             `;
 
             usages.sort((a,b) => new Date(b.Date) - new Date(a.Date)).forEach(u => {
@@ -1132,6 +1302,8 @@
                         <td>${dateStr}</td>
                         <td style="font-weight:600;">${u.KasetNo || '-'}</td>
                         <td>${u.Aircraft || '-'}</td>
+                        <td style="font-size: 11px;">${u.RepairType || '-'}</td>
+                        <td>${u.Location || '-'}</td>
                         <td><b>${u.Qty}</b></td>
                         <td>${u.SN || '-'}</td>
                         <td>${u.Operator || '-'}</td>
@@ -1143,13 +1315,13 @@
                 `;
             });
 
-            html += `</tbody></table>`;
+            html += `</tbody></table></div>`;
             body.innerHTML = html;
             modal.style.display = 'block';
         }
 
         function showAllTransactions() {
-            if (allData.length === 0) return alert("ไม่มีข้อมูล");
+            if (allData.length === 0) return showToast("ไม่มีข้อมูล");
 
             const modal = document.getElementById('detail-modal');
             const title = document.getElementById('modal-title');
@@ -1220,7 +1392,7 @@
 
         function preparePrint(txId) {
             const items = allData.filter(d => d.TransactionID === txId);
-            if (items.length === 0) return alert("ไม่พบข้อมูลสำหรับการพิมพ์");
+            if (items.length === 0) return showToast("ไม่พบข้อมูลสำหรับการพิมพ์");
 
             const main = items[0];
             
@@ -1282,6 +1454,8 @@
         }
 
         document.getElementById('ui-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('kaset-search').value = '';
+        document.getElementById('tx-search').value = '';
         addItem();
     </script>
 </body>
