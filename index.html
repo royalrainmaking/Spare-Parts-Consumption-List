@@ -631,7 +631,7 @@
             <div class="card" style="display: none;">
                 <div class="form-group">
                     <label>Google Apps Script URL (เชื่อมต่อแล้ว)</label>
-                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbwFdAc3izfg7hXFHdvuQc-ot-II5NcwGiPOowkhFiD9mOCmmL6jtucHuOTJaGfpl5K9/exec" style="background: #f0fdf4; color: #166534;" readonly>
+                    <input type="text" id="script-url" value="https://script.google.com/macros/s/AKfycbzL4Q-Jo_4ChiR0b77FQl8kHgljKcwaDTc_n0scvFK89PLG8EUabqtGvozyi261ZzED/exec" style="background: #f0fdf4; color: #166534;" readonly>
                 </div>
             </div>
 
@@ -723,6 +723,10 @@
                             <input type="text" id="ui-sv-name" placeholder="ชื่อ-นามสกุล" oninput="sync()">
                             <input type="text" id="ui-sv-rank" placeholder="ตำแหน่ง" oninput="sync()">
                         </div>
+                    </div>
+                    <div id="modifier-container" style="display: none; flex-direction: column; gap: 8px;">
+                        <label class="required">ชื่อผู้ทำการแก้ไข</label>
+                        <input type="text" id="ui-modifier-name" placeholder="ชื่อ-นามสกุล ผู้ทำการแก้ไข" oninput="sync()">
                     </div>
                 </div>
             </div>
@@ -1021,6 +1025,8 @@
             document.getElementById('ui-op-rank').value = '';
             document.getElementById('ui-sv-name').value = '';
             document.getElementById('ui-sv-rank').value = '';
+            document.getElementById('ui-modifier-name').value = '';
+            document.getElementById('modifier-container').style.display = 'none';
 
             itemCount = 0;
             markUnsaved();
@@ -1038,6 +1044,8 @@
             
             showView('form');
             editingTxId = txId;
+            document.getElementById('modifier-container').style.display = 'flex';
+            document.getElementById('ui-modifier-name').value = ''; // Always require a fresh name when editing
             
             document.getElementById('ui-location').value = first.Location || '';
             // Format date for input type="date"
@@ -1314,6 +1322,16 @@
                 }
             }
 
+            // 5. ตรวจสอบชื่อผู้แก้ไข (ถ้ามีการแก้ไข)
+            if (editingTxId) {
+                const modifierEl = document.getElementById('ui-modifier-name');
+                if (!modifierEl.value.trim()) {
+                    modifierEl.focus();
+                    modifierEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return showToast("⚠️ กรุณากรอกชื่อผู้ทำการแก้ไข");
+                }
+            }
+
             toggleLoading(true, "กำลังบันทึกข้อมูล...");
 
             const timestamp = new Date();
@@ -1321,16 +1339,17 @@
 
             const data = {
                 transactionId: transactionId,
-                location: location,
-                date: date,
-                aircraft: acType,
-                kasetNo: kaset,
+                location: document.getElementById('ui-location').value.trim(),
+                date: document.getElementById('ui-date').value.trim(),
+                aircraft: document.getElementById('ui-ac-type').value.trim(),
+                kasetNo: document.getElementById('ui-kaset').value.trim(),
                 ref: document.getElementById('ui-ref').value.trim(),
                 repairType: repairTypeLabel.trim(),
-                opName: opName,
-                opRank: opRank,
-                svName: svName,
-                svRank: svRank,
+                opName: document.getElementById('ui-op-name').value.trim(),
+                opRank: document.getElementById('ui-op-rank').value.trim(),
+                svName: document.getElementById('ui-sv-name').value.trim(),
+                svRank: document.getElementById('ui-sv-rank').value.trim(),
+                modifierName: document.getElementById('ui-modifier-name').value.trim(),
                 note: document.getElementById('ui-note').value.trim(),
                 items: items
             };
@@ -1392,6 +1411,7 @@
                     Supervisor: d["ผู้ควบคุม"] || d.Supervisor || "",
                     SvRank: d["ตำแหน่ง(ผู้ควบคุม)"] || d.SvRank || "",
                     Note: d["หมายเหตุ"] || d.Note || "",
+                    ModifierName: d["ModifierName"] || "",
                     Timestamp: d["Timestamp"] || ""
                 }));
                 

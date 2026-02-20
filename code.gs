@@ -28,7 +28,8 @@ function setupSheet() {
     "PN", 
     "SN", 
     "Qty", 
-    "Note"
+    "Note",
+    "ModifierName"
   ];
   
   sheet.appendRow(headers);
@@ -64,7 +65,8 @@ function doPost(e) {
       "PN", 
       "SN", 
       "Qty", 
-      "Note"
+      "Note",
+      "ModifierName"
     ]);
   }
   
@@ -122,7 +124,8 @@ function doPost(e) {
         item.pn,
         item.sn,
         item.qty,
-        item.note || data.note || ""
+        item.note || data.note || "",
+        data.modifierName || ""
       ]);
     });
     
